@@ -5,9 +5,19 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 
 from services.service_container import get_container
 from utils.plot_utils import make_plotly_traces
+from utils.rate_limiter import init_rate_limiting
+from api.swagger_config import setup_api_documentation
+from api.v1.blueprints import register_api_blueprint
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "fallback-secret-key")
+
+# Setup API documentation and endpoints
+setup_api_documentation(app)
+register_api_blueprint(app)
+
+# Initialize rate limiting
+init_rate_limiting(app)
 
 # Initialize services
 container = get_container()
