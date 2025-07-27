@@ -34,15 +34,27 @@ Runs Flask in debug mode on default port 5000.
 
 ### Data Collection
 ```bash
-python scripts/main.py
+python scripts/main_service.py
 ```
-Starts continuous logging of miner data at configured intervals.
+Starts continuous logging of miner data using the service architecture.
 
 ### Autopilot Mode
 ```bash
-python scripts/bitaxe_autopilot.py
+python scripts/autopilot_service_runner.py
 ```
 Runs automated optimization with temperature protection and efficiency monitoring.
+
+### Database Migration
+```bash
+python scripts/migrate_to_sqlalchemy.py --old-db data/bitaxe_data.db --backup
+```
+Migrates existing SQLite data to new SQLAlchemy schema with backup.
+
+### Manual Benchmarking
+```bash
+python scripts/benchmark_cli.py --ip 192.168.1.100 --frequency 800 --voltage 1200 --duration 600
+```
+Run benchmarks from command line with specific settings.
 
 ## Key Features
 
@@ -83,10 +95,42 @@ Runs automated optimization with temperature protection and efficiency monitorin
 - Shared state managed via `scripts/benchmark_state.py`
 - Database operations use connection-per-operation pattern
 
+## Database Architecture
+
+### SQLAlchemy Models
+- **MinerLog**: Telemetry data with indexes for performance
+- **BenchmarkResult**: Performance test results with efficiency metrics
+- **ProtocolEvent**: System events and logs with severity levels
+- **EfficiencyMarker**: Efficiency tracking for drift detection
+- **TuningStatus**: Best settings per miner
+- **MinerConfiguration**: Individual miner settings and metadata
+- **SystemConfiguration**: System-wide configuration storage
+
+### Repository Pattern
+- Base repository with CRUD operations and filtering
+- Specialized repositories for each model with domain-specific methods
+- Repository factory for dependency injection
+- Built-in data validation using Pydantic schemas
+
+### Connection Pooling
+- SQLite: WAL mode with pragma optimizations
+- PostgreSQL/MySQL: Configurable pool size with connection recycling
+- Health checks and automatic connection management
+
+### Migrations
+- Alembic integration for schema versioning
+- Automatic migration generation
+- Rollback support for schema changes
+
 ## Configuration Requirements
 
 Update `config/config.json` with:
 - Miner IP addresses in `config.ips` array
-- Database path in `paths.database`
+- Database path in `paths.database` (SQLite) or set DATABASE_URL environment variable
 - Temperature limits in `settings.temp_limit` and `settings.temp_overheat`
 - Frequency and voltage ranges in `settings.freq_list` and `settings.volt_list`
+
+### Environment Variables
+- `DATABASE_URL`: Full database connection string (overrides config file)
+- `DATABASE_PATH`: SQLite database file path
+- `FLASK_SECRET_KEY`: Flask session secret
