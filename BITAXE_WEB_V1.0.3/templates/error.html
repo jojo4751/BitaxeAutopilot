@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Error - BITAXE{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="alert alert-danger" role="alert">
+                <h4 class="alert-heading">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Error {{ status_code or 500 }}
+                </h4>
+                <p class="mb-3">{{ error.message or "An unexpected error occurred" }}</p>
+                
+                {% if error.code %}
+                <p><strong>Error Code:</strong> <code>{{ error.code }}</code></p>
+                {% endif %}
+                
+                {% if error.request_id %}
+                <p><strong>Request ID:</strong> <code>{{ error.request_id }}</code></p>
+                {% endif %}
+                
+                {% if error.timestamp %}
+                <p><strong>Time:</strong> {{ error.timestamp }}</p>
+                {% endif %}
+                
+                {% if error.details %}
+                <hr>
+                <h6>Details:</h6>
+                <pre class="bg-light p-2 rounded"><code>{{ error.details | tojson(indent=2) }}</code></pre>
+                {% endif %}
+            </div>
+            
+            <div class="mt-4">
+                <a href="{{ url_for('status') }}" class="btn btn-primary">
+                    <i class="fas fa-home"></i> Return to Dashboard
+                </a>
+                <button class="btn btn-secondary" onclick="window.history.back()">
+                    <i class="fas fa-arrow-left"></i> Go Back
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

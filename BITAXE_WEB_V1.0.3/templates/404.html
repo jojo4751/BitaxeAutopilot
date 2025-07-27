@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Page Not Found - BITAXE{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 text-center">
+            <div class="error-template">
+                <h1>404</h1>
+                <h2>Page Not Found</h2>
+                <div class="error-details mb-4">
+                    The page you are looking for might have been removed, renamed, or is temporarily unavailable.
+                </div>
+                <div class="error-actions">
+                    <a href="{{ url_for('status') }}" class="btn btn-primary btn-lg">
+                        <i class="fas fa-home"></i> Take Me Home
+                    </a>
+                    <a href="javascript:history.back()" class="btn btn-secondary btn-lg">
+                        <i class="fas fa-arrow-left"></i> Go Back
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.error-template {
+    padding: 40px 15px;
+    text-align: center;
+}
+.error-template h1 {
+    font-size: 150px;
+    font-weight: bold;
+    color: #dc3545;
+    margin-bottom: 20px;
+}
+.error-template h2 {
+    font-size: 36px;
+    margin-bottom: 20px;
+}
+.error-details {
+    font-size: 18px;
+    color: #6c757d;
+}
+</style>
+{% endblock %}

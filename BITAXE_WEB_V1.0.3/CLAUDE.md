@@ -134,3 +134,43 @@ Update `config/config.json` with:
 - `DATABASE_URL`: Full database connection string (overrides config file)
 - `DATABASE_PATH`: SQLite database file path
 - `FLASK_SECRET_KEY`: Flask session secret
+- `LOG_LEVEL`: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+- `LOG_FILE`: Path to log file for structured JSON logging
+
+## Error Handling & Monitoring
+
+### Structured Logging
+- **JSON format**: All logs output in structured JSON for easy parsing
+- **Context-aware**: Includes request context, miner IPs, operation details
+- **Multiple levels**: Debug, Info, Warning, Error, Critical with proper categorization
+- **Performance tracking**: Automatic timing of operations and requests
+
+### Custom Exception Hierarchy
+- **BitaxeException**: Base exception with error codes and context
+- **Domain-specific exceptions**: MinerError, DatabaseError, BenchmarkError, etc.
+- **Error context**: Rich error information for debugging and monitoring
+- **Proper propagation**: Errors bubble up with full context preservation
+
+### Retry Logic
+- **Smart retries**: HTTP requests automatically retry with exponential backoff
+- **Configurable**: Different retry strategies for different operations
+- **Context-aware**: Retry logic considers error types and operation criticality
+- **Timeout handling**: Proper timeout management with circuit breaker patterns
+
+### Health Checks
+- **Component monitoring**: Database, miners, services, system resources
+- **Automatic discovery**: Health checks automatically added for configured miners
+- **Status aggregation**: Overall system health with component breakdown
+- **API endpoints**: `/health`, `/health/detailed`, `/health/<component>`
+
+### Error Boundaries
+- **Route-level protection**: All Flask routes wrapped with error boundaries
+- **Content negotiation**: Automatic JSON/HTML response based on client preferences
+- **Graceful degradation**: Proper fallback templates and error pages
+- **Request tracking**: Unique request IDs for tracing errors across logs
+
+### Metrics Collection
+- **System metrics**: Request counts, response times, error rates
+- **Business metrics**: Miner performance, benchmark results, efficiency tracking
+- **Resource monitoring**: CPU, memory, disk usage
+- **Export formats**: Prometheus-compatible metrics export
