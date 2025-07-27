@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2>Manuelle Steuerung</h2>
+
+{% if message %}
+<div class="alert alert-success">{{ message }}</div>
+{% endif %}
+
+<form method="POST" class="mb-4">
+  <div class="mb-3">
+    <label>Miner:</label>
+    <select name="ip" class="form-select">
+      {% for ip in ips %}
+        <option value="{{ ip }}">{{ ip }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="mb-3">
+    <label>Frequency (MHz):</label>
+    <select name="frequency" class="form-select">
+      {% for f in freq_list %}
+        <option value="{{ f }}">{{ f }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="mb-3">
+    <label>Voltage (mV):</label>
+    <select name="voltage" class="form-select">
+      {% for v in volt_list %}
+        <option value="{{ v }}">{{ v }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button type="submit" class="btn btn-primary">Set Settings</button>
+</form>
+
+<hr>
+
+<h2>Benchmark starten (Einzeln)</h2>
+<form method="POST" action="{{ url_for('start_benchmark') }}">
+  <div class="mb-3">
+    <label>Miner:</label>
+    <select name="ip" class="form-select">
+      {% for ip in ips %}
+        <option value="{{ ip }}">{{ ip }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="mb-3">
+    <label>Frequency (MHz):</label>
+    <select name="frequency" class="form-select">
+      {% for f in freq_list %}
+        <option value="{{ f }}">{{ f }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="mb-3">
+    <label>Voltage (mV):</label>
+    <select name="voltage" class="form-select">
+      {% for v in volt_list %}
+        <option value="{{ v }}">{{ v }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="mb-3">
+    <label>Dauer (Sekunden):</label>
+    <input type="number" name="benchmark_time" class="form-control" value="600" min="60" max="7200">
+  </div>
+  <button type="submit" class="btn btn-warning">Benchmark starten</button>
+</form>
+
+<hr>
+
+<h2>Multi-Benchmark starten</h2>
+<form method="POST" action="{{ url_for('start_multi_benchmark') }}">
+  <div class="mb-3">
+    <label>Miner auswählen:</label><br>
+    {% for ip in ips %}
+      <div class="form-check form-check-inline">
+        <input class="form-check-input" type="checkbox" name="ips" value="{{ ip }}">
+        <label class="form-check-label">{{ ip }}</label>
+      </div>
+    {% endfor %}
+  </div>
+  <div class="mb-3">
+    <label>Frequency (MHz):</label>
+    <select name="frequency" class="form-select">
+      {% for f in freq_list %}
+        <option value="{{ f }}">{{ f }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="mb-3">
+    <label>Voltage (mV):</label>
+    <select name="voltage" class="form-select">
+      {% for v in volt_list %}
+        <option value="{{ v }}">{{ v }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="mb-3">
+    <label>Dauer (Sekunden):</label>
+    <input type="number" name="benchmark_time" class="form-control" value="600" min="60" max="7200">
+  </div>
+  <button type="submit" class="btn btn-danger">Multi-Benchmark starten</button>
+</form>
+
+<hr>
+
+<h2>Routine-Benchmark Intervall</h2>
+<form method="POST" action="{{ url_for('set_benchmark_interval') }}">
+  <div class="mb-3">
+    <label>Intervall (Sekunden):</label>
+    <input type="number" name="interval" class="form-control" value="{{ benchmark_interval }}" min="60">
+  </div>
+  <button type="submit" class="btn btn-info">Intervall speichern</button>
+</form>
+
+{% endblock %}

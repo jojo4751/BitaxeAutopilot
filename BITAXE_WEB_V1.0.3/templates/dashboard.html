@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="mb-4">Dashboard</h2>
+
+<div class="row">
+  {% for miner in miners %}
+  <div class="col-lg-6 mb-4">
+    <div class="card">
+      <div class="card-header">{{ miner.hostname or miner.ip }}</div>
+      <div class="card-body">
+        <h5 class="card-title">Hashrate: {{ miner.hashRate }} GH/s</h5>
+        <p class="card-text">
+          Temperatur: {{ miner.temp }} °C<br>
+          Spannung: {{ miner.coreVoltage }} mV<br>
+          Frequenz: {{ miner.frequency }} MHz<br>
+          Fan: {{ miner.fanrpm or "–" }} RPM<br>
+          Power: {{ miner.power }} W<br>
+          GH/W:
+          {% if miner.power > 0 %}
+            {{ (miner.hashRate / miner.power) | round(2) }}
+          {% else %}
+            –
+          {% endif %}
+        </p>
+        <div id="plot_{{ miner.ip|replace('.', '_') }}" style="height:250px;"></div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Plotly -->
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script>
+  const plotData = {{ plot_data | tojson | safe }};
+  for (const ip in plotData) {
+    const containerId = "plot_" + ip.replaceAll(".", "_");
+    const container = document.getElementById(containerId);
+    const data = plotData[ip].traces;
+    Plotly.newPlot(container, data, {
+      title: "",
+      template: "plotly_white",
+      margin: { t: 10, l: 30, r: 10, b: 30 },
+      height: 250,
+      xaxis: { title: "", showticklabels: false },
+      yaxis: { title: "GH/s / °C" }
+    });
+  }
+</script>
+{% endblock %}

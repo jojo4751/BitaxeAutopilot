@@ -1,0 +1,121 @@
+/* === Global === */
+body {
+  background-color: #f9f9fb;
+  color: #333333;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+}
+
+h1, h2, h3, h4 {
+  font-weight: 600;
+  margin-top: 0;
+}
+
+/* === Navbar === */
+.navbar {
+  background-color: #ffffff;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.navbar a {
+  color: #333333;
+  transition: color 0.3s;
+}
+
+.navbar a:hover {
+  color: #4da6ff;
+  text-decoration: none;
+}
+
+/* === Container === */
+main.container {
+  padding-top: 20px;
+  padding-bottom: 40px;
+}
+
+/* === Card === */
+.card {
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.card-header {
+  font-weight: 600;
+  font-size: 1.1rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+/* === Buttons === */
+.btn-primary {
+  background-color: #4da6ff;
+  border: none;
+  border-radius: 8px;
+  transition: background-color 0.3s;
+}
+
+.btn-primary:hover {
+  background-color: #82cfff;
+}
+
+/* === Form === */
+.form-select, .form-control {
+  border-radius: 8px;
+  border: 1px solid #cccccc;
+  transition: border-color 0.3s;
+}
+
+.form-select:focus, .form-control:focus {
+  border-color: #4da6ff;
+  box-shadow: none;
+}
+
+/* === Alerts === */
+.alert {
+  border-radius: 8px;
+}
+
+/* === Plotly === */
+.plotly-graph-div {
+  background-color: #ffffff !important;
+  border-radius: 12px;
+  padding: 10px;
+}
+
+/* === Utilities === */
+.border-danger {
+  border: 2px solid #e74c3c !important;
+}
+
+.border-warning {
+  border: 2px solid #f39c12 !important;
+}
+
+.border-success {
+  border: 2px solid #2ecc71 !important;
+}
+
+/* === Mobile === */
+@media (max-width: 768px) {
+  .navbar-nav {
+    margin-top: 10px;
+  }
+
+  .card {
+    margin-bottom: 20px;
+  }
+
+  main.container {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+}

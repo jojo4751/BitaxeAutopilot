@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="mb-4">Miner-Statusübersicht</h2>
+<div class="row">
+  {% for miner in miners %}
+  <div class="col-md-4 mb-3">
+    <div class="card {% if miner.temp >= 75 %}border-danger{% elif miner.hashRate <= 0 %}border-warning{% else %}border-success{% endif %}">
+      <div class="card-body">
+        <h5 class="card-title">{{ miner.hostname or miner.ip }}</h5>
+        <p class="card-text">
+          Temperatur: <strong>{{ miner.temp }} °C</strong><br>
+          Hashrate: <strong>{{ miner.hashRate|round(2) }} GH/s</strong><br>
+          GH/W: <strong>{% if miner.hashRate and miner.power %}{{ (miner.hashRate / miner.power)|round(2) }}{% else %}–{% endif %}</strong><br>
+          Shares/h: <strong>{{ miner.shares_accepted_delta or 0 }}</strong><br>
+          Spannung: <strong>{{ miner.coreVoltage }} mV</strong><br>
+          Frequenz: <strong>{{ miner.frequency }} MHz</strong><br>
+          Zeit: <small>{{ miner.timestamp }}</small>
+        </p>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

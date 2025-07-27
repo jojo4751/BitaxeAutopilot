@@ -1,0 +1,58 @@
+{
+  "paths": 
+  {
+    "database": "C:\\DevPacks\\BITAXE_WEB_V1.0.2\\data\\bitaxe_data.db",
+    "logfile": "C:\\DevPacks\\BITAXE_WEB_V1.0.3\\data\\logs\\log.txt",
+    "config": "C:\\DevPacks\\BITAXE_WEB_V1.0.3\\config\\config.json",
+    "log_table": "logs",
+    "tuning_table": "tuning_status",
+    "protocol_table": "protocol",
+    "efficiency_markers": "efficiency_markers",
+    "benchmark_results": "benchmark_results"
+  },
+  "config": 
+  {
+    "ips": [
+      "192.168.178.113",
+      "192.168.178.114",
+      "192.168.178.115",
+      "192.168.178.116",
+      "192.168.178.117"
+    ],
+    "log_interval_sec": 30
+  },
+  "visual": 
+  {
+  "colors": 
+    {
+      "192.168.178.113": "#8e44ad",
+      "192.168.178.114": "#f39c12",
+      "192.168.178.115": "#16a085",
+      "192.168.178.116": "#16a085",
+      "192.168.178.117": "#16a085"
+    }
+  },
+  "settings": {
+    "freq_list": [750, 775, 800, 825, 850, 875, 900, 925],
+    "volt_list": [1150, 1175, 1200, 1225, 1250, 1275],
+    "wait_between_cycles_sec": 1800,
+    "temp_limit": 73,
+    "temp_overheat": 75,
+    "benchmark_interval_sec": 86400,
+    "fallback": {
+      "frequency": 750,
+      "coreVoltage": 1150
+    }
+  },
+  "profiles":
+  {
+    "max": {
+      "frequency": 800,
+      "coreVoltage": 1200
+    },
+    "eco": {
+      "frequency": 725,
+      "coreVoltage": 1150
+    }
+  }
+}
