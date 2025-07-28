@@ -4,7 +4,15 @@
       "Bash(mkdir:*)",
       "Bash(python -m alembic revision:*)",
       "Bash(git add:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(python -m pytest tests/unit/test_ml_engine.py::TestFeatureEngineer::test_feature_engineering_basic -v --tb=short)",
+      "Bash(pip install:*)",
+      "Bash(python -m pytest tests/test_framework_basic.py -v)",
+      "Bash(rename:*)",
+      "Bash(move:*)",
+      "Bash(mv:*)",
+      "Bash(python -m pytest tests/test_framework_basic.py -v --tb=short)",
+      "Bash(python:*)"
     ],
     "deny": []
   }

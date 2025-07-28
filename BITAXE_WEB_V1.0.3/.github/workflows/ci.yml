@@ -1,0 +1,521 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [ master, develop ]
+  pull_request:
+    branches: [ master, develop ]
+
+env:
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "18"
+
+jobs:
+  # Code Quality and Security Checks
+  code-quality:
+    name: Code Quality & Security
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-dev.txt
+        pip install -r requirements-test.txt
+    
+    - name: Run code formatting check (Black)
+      run: |
+        black --check --diff .
+    
+    - name: Run imports sorting check (isort)
+      run: |
+        isort --check-only --diff .
+    
+    - name: Run linting (Flake8)
+      run: |
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    
+    - name: Run type checking (MyPy)
+      run: |
+        mypy . --ignore-missing-imports
+      continue-on-error: true
+    
+    - name: Run security scan (Bandit)
+      run: |
+        bandit -r . -x tests/ -f json -o bandit-report.json
+        bandit -r . -x tests/
+      continue-on-error: true
+    
+    - name: Run dependency vulnerability check (Safety)
+      run: |
+        safety check --json --output safety-report.json
+        safety check
+      continue-on-error: true
+    
+    - name: Upload security reports
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-reports
+        path: |
+          bandit-report.json
+          safety-report.json
+
+  # Unit Tests
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-${{ matrix.python-version }}-pip-${{ hashFiles('**/requirements*.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ matrix.python-version }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-test.txt
+    
+    - name: Run unit tests
+      run: |
+        python -m pytest tests/unit/ \
+          --verbose \
+          --tb=short \
+          --cov=. \
+          --cov-report=xml \
+          --cov-report=term-missing \
+          --cov-fail-under=80 \
+          --junit-xml=junit-unit-${{ matrix.python-version }}.xml
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unit-tests
+        name: codecov-${{ matrix.python-version }}
+        fail_ci_if_error: false
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: unit-test-results-${{ matrix.python-version }}
+        path: |
+          junit-unit-${{ matrix.python-version }}.xml
+          coverage.xml
+
+  # Integration Tests
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: bitaxe_test
+          POSTGRES_USER: bitaxe
+          POSTGRES_PASSWORD: bitaxe123
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-integration-pip-${{ hashFiles('**/requirements*.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-integration-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-test.txt
+        pip install -r requirements-prod.txt
+    
+    - name: Wait for services to be ready
+      run: |
+        # Wait for PostgreSQL
+        for i in {1..30}; do
+          if pg_isready -h localhost -p 5432 -U bitaxe -d bitaxe_test; then
+            echo "PostgreSQL is ready"
+            break
+          fi
+          echo "Waiting for PostgreSQL... ($i/30)"
+          sleep 2
+        done
+        
+        # Wait for Redis
+        for i in {1..30}; do
+          if redis-cli -h localhost -p 6379 ping; then
+            echo "Redis is ready"
+            break
+          fi
+          echo "Waiting for Redis... ($i/30)"
+          sleep 2
+        done
+    
+    - name: Set up test database
+      env:
+        DATABASE_URL: postgresql://bitaxe:bitaxe123@localhost:5432/bitaxe_test
+        REDIS_URL: redis://localhost:6379/0
+      run: |
+        python -c "
+        from database import DatabaseManager
+        from models.miner_models import Base
+        db = DatabaseManager('postgresql://bitaxe:bitaxe123@localhost:5432/bitaxe_test')
+        db.init_database()
+        if hasattr(Base, 'metadata'):
+            Base.metadata.create_all(db.engine)
+        print('Test database initialized')
+        "
+    
+    - name: Run integration tests
+      env:
+        DATABASE_URL: postgresql://bitaxe:bitaxe123@localhost:5432/bitaxe_test
+        REDIS_URL: redis://localhost:6379/0
+        JWT_SECRET_KEY: test-secret-key
+        OPENWEATHERMAP_API_KEY: test-api-key
+      run: |
+        python -m pytest tests/integration/ \
+          --verbose \
+          --tb=short \
+          --cov=. \
+          --cov-report=xml \
+          --cov-report=term-missing \
+          --junit-xml=junit-integration.xml \
+          --timeout=300
+    
+    - name: Upload integration test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: integration-test-results
+        path: |
+          junit-integration.xml
+          coverage.xml
+
+  # End-to-End Tests
+  e2e-tests:
+    name: End-to-End Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Cache Docker layers
+      uses: actions/cache@v3
+      with:
+        path: /tmp/.buildx-cache
+        key: ${{ runner.os }}-buildx-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-buildx-
+    
+    - name: Build test environment
+      run: |
+        docker-compose -f docker-compose.dev.yml build --cache-from=type=local,src=/tmp/.buildx-cache
+        docker-compose -f docker-compose.dev.yml up -d
+    
+    - name: Wait for services to be ready
+      run: |
+        # Wait for application to be ready
+        for i in {1..60}; do
+          if curl -f http://localhost:5000/health; then
+            echo "Application is ready"
+            break
+          fi
+          echo "Waiting for application... ($i/60)"
+          sleep 5
+        done
+        
+        # Check all services are running
+        docker-compose -f docker-compose.dev.yml ps
+    
+    - name: Install test dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-test.txt
+    
+    - name: Run end-to-end tests
+      env:
+        E2E_BASE_URL: http://localhost:5000
+        DATABASE_URL: postgresql://bitaxe:bitaxe123@postgres-dev:5432/bitaxe_dev
+        REDIS_URL: redis://redis-dev:6379/0
+      run: |
+        python -m pytest tests/e2e/ \
+          --verbose \
+          --tb=short \
+          --junit-xml=junit-e2e.xml \
+          --timeout=600
+    
+    - name: Collect docker logs
+      if: failure()
+      run: |
+        mkdir -p logs
+        docker-compose -f docker-compose.dev.yml logs > logs/docker-compose.log
+    
+    - name: Upload E2E test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: e2e-test-results
+        path: |
+          junit-e2e.xml
+          logs/
+    
+    - name: Cleanup
+      if: always()
+      run: |
+        docker-compose -f docker-compose.dev.yml down -v
+
+  # Build and Test Docker Images
+  docker-build:
+    name: Docker Build & Test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Cache Docker layers
+      uses: actions/cache@v3
+      with:
+        path: /tmp/.buildx-cache
+        key: ${{ runner.os }}-docker-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-docker-
+    
+    - name: Build development image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        target: development
+        push: false
+        tags: bitaxe-web:dev-test
+        cache-from: type=local,src=/tmp/.buildx-cache
+        cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+    
+    - name: Build production image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        target: production
+        push: false
+        tags: bitaxe-web:prod-test
+        cache-from: type=local,src=/tmp/.buildx-cache
+        cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+    
+    - name: Test development image
+      run: |
+        docker run --rm --name bitaxe-dev-test -d -p 5000:5000 bitaxe-web:dev-test
+        sleep 10
+        curl -f http://localhost:5000/health || exit 1
+        docker stop bitaxe-dev-test
+    
+    - name: Test production image
+      run: |
+        docker run --rm --name bitaxe-prod-test -d -p 8080:80 \
+          -e DATABASE_URL=sqlite:///tmp/test.db \
+          -e JWT_SECRET_KEY=test-key \
+          bitaxe-web:prod-test
+        sleep 15
+        curl -f http://localhost:8080/health || exit 1
+        docker stop bitaxe-prod-test
+    
+    - name: Run security scan on images
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'bitaxe-web:prod-test'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+    
+    # Move cache to avoid ever-growing cache
+    - name: Move cache
+      run: |
+        rm -rf /tmp/.buildx-cache
+        mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+  # Performance Tests
+  performance-tests:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    needs: [unit-tests]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-test.txt
+        pip install locust
+    
+    - name: Start application for performance testing
+      run: |
+        docker-compose -f docker-compose.dev.yml up -d
+        sleep 30
+    
+    - name: Run performance tests
+      run: |
+        python -m pytest tests/ -m performance \
+          --verbose \
+          --tb=short \
+          --junit-xml=junit-performance.xml \
+          --benchmark-only \
+          --benchmark-json=benchmark-results.json
+    
+    - name: Run load tests
+      run: |
+        locust -f tests/load_tests.py \
+          --headless \
+          --users 50 \
+          --spawn-rate 5 \
+          --run-time 2m \
+          --host http://localhost:5000 \
+          --html performance-report.html
+      continue-on-error: true
+    
+    - name: Upload performance results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: performance-test-results
+        path: |
+          junit-performance.xml
+          benchmark-results.json
+          performance-report.html
+    
+    - name: Cleanup
+      if: always()
+      run: |
+        docker-compose -f docker-compose.dev.yml down -v
+
+  # Test Summary
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [code-quality, unit-tests, integration-tests, e2e-tests, docker-build, performance-tests]
+    if: always()
+    
+    steps:
+    - name: Download all test artifacts
+      uses: actions/download-artifact@v3
+    
+    - name: Create test summary
+      run: |
+        echo "## Test Results Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Check job statuses
+        echo "### Job Status" >> $GITHUB_STEP_SUMMARY
+        echo "- Code Quality: ${{ needs.code-quality.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Unit Tests: ${{ needs.unit-tests.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Integration Tests: ${{ needs.integration-tests.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- E2E Tests: ${{ needs.e2e-tests.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Docker Build: ${{ needs.docker-build.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Performance Tests: ${{ needs.performance-tests.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # List available artifacts
+        echo "### Available Artifacts" >> $GITHUB_STEP_SUMMARY
+        find . -name "*.xml" -o -name "*.json" -o -name "*.html" | head -20 >> $GITHUB_STEP_SUMMARY
+    
+    - name: Check overall success
+      run: |
+        if [[ "${{ needs.code-quality.result }}" == "success" && \
+              "${{ needs.unit-tests.result }}" == "success" && \
+              "${{ needs.integration-tests.result }}" == "success" && \
+              "${{ needs.docker-build.result }}" == "success" ]]; then
+          echo "All critical tests passed ✅"
+          exit 0
+        else
+          echo "Some critical tests failed ❌"
+          exit 1
+        fi

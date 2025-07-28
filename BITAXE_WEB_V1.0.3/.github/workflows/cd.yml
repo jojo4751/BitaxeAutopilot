@@ -1,0 +1,562 @@
+name: Continuous Deployment
+
+on:
+  push:
+    branches: [ master ]
+    tags: [ 'v*' ]
+  release:
+    types: [ published ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+      force_deploy:
+        description: 'Force deployment even if tests fail'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  # Build and Push Docker Images
+  build-and-push:
+    name: Build & Push Images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+    
+    - name: Build and push Docker image
+      id: build
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        target: production
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        platforms: linux/amd64,linux/arm64
+        build-args: |
+          VERSION=${{ steps.meta.outputs.version }}
+          BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+          VCS_REF=${{ github.sha }}
+    
+    - name: Generate SBOM
+      uses: anchore/sbom-action@v0
+      with:
+        image: ${{ steps.meta.outputs.tags }}
+        format: spdx-json
+        output-file: sbom.spdx.json
+    
+    - name: Upload SBOM
+      uses: actions/upload-artifact@v3
+      with:
+        name: sbom
+        path: sbom.spdx.json
+
+  # Security Scanning
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    permissions:
+      security-events: write
+    
+    steps:
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ needs.build-and-push.outputs.image-tag }}
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif'
+    
+    - name: Check for critical vulnerabilities
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ needs.build-and-push.outputs.image-tag }}
+        format: 'json'
+        output: 'trivy-results.json'
+        exit-code: '1'
+        severity: 'CRITICAL,HIGH'
+      continue-on-error: true
+
+  # Deploy to Staging
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build-and-push, security-scan]
+    if: |
+      github.ref == 'refs/heads/master' || 
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+    environment:
+      name: staging
+      url: https://staging.bitaxe.example.com
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+    
+    - name: Deploy to ECS Staging
+      run: |
+        # Update ECS task definition with new image
+        aws ecs describe-task-definition \
+          --task-definition bitaxe-staging \
+          --query taskDefinition > task-def.json
+        
+        # Update image in task definition
+        jq '.containerDefinitions[0].image = "${{ needs.build-and-push.outputs.image-tag }}"' \
+          task-def.json > updated-task-def.json
+        
+        # Register new task definition
+        aws ecs register-task-definition \
+          --cli-input-json file://updated-task-def.json \
+          --query 'taskDefinition.taskDefinitionArn' \
+          --output text > task-def-arn.txt
+        
+        # Update service
+        aws ecs update-service \
+          --cluster bitaxe-staging \
+          --service bitaxe-web-staging \
+          --task-definition $(cat task-def-arn.txt) \
+          --force-new-deployment
+        
+        # Wait for deployment to complete
+        aws ecs wait services-stable \
+          --cluster bitaxe-staging \
+          --services bitaxe-web-staging \
+          --timeout 600
+    
+    - name: Run smoke tests
+      run: |
+        # Wait for service to be ready
+        sleep 60
+        
+        # Basic health check
+        curl -f https://staging.bitaxe.example.com/health
+        
+        # API smoke tests
+        curl -f https://staging.bitaxe.example.com/api/v1/status
+    
+    - name: Notify deployment
+      uses: 8398a7/action-slack@v3
+      if: always()
+      with:
+        status: ${{ job.status }}
+        text: |
+          Staging deployment ${{ job.status }}
+          Image: ${{ needs.build-and-push.outputs.image-tag }}
+          Environment: https://staging.bitaxe.example.com
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # Integration Tests on Staging
+  staging-tests:
+    name: Staging Integration Tests
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install test dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-test.txt
+        pip install requests pytest-html
+    
+    - name: Run staging integration tests
+      env:
+        STAGING_BASE_URL: https://staging.bitaxe.example.com
+        STAGING_API_KEY: ${{ secrets.STAGING_API_KEY }}
+      run: |
+        python -m pytest tests/staging/ \
+          --verbose \
+          --tb=short \
+          --html=staging-test-report.html \
+          --self-contained-html \
+          --junit-xml=junit-staging.xml
+    
+    - name: Upload staging test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: staging-test-results
+        path: |
+          staging-test-report.html
+          junit-staging.xml
+
+  # Deploy to Production
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build-and-push, security-scan, staging-tests]
+    if: |
+      (github.event_name == 'release' && github.event.action == 'published') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production') ||
+      (startsWith(github.ref, 'refs/tags/v'))
+    environment:
+      name: production
+      url: https://bitaxe.example.com
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Pre-deployment checks
+      run: |
+        echo "Running pre-deployment checks..."
+        
+        # Check if this is a force deployment
+        if [[ "${{ github.event.inputs.force_deploy }}" == "true" ]]; then
+          echo "⚠️ Force deployment enabled - skipping some checks"
+        fi
+        
+        # Verify image exists
+        docker manifest inspect ${{ needs.build-and-push.outputs.image-tag }}
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+    
+    - name: Create deployment backup
+      run: |
+        # Backup current task definition
+        aws ecs describe-task-definition \
+          --task-definition bitaxe-production \
+          --query taskDefinition > backup-task-def.json
+          
+        # Store current image for rollback
+        CURRENT_IMAGE=$(jq -r '.containerDefinitions[0].image' backup-task-def.json)
+        echo "ROLLBACK_IMAGE=$CURRENT_IMAGE" >> $GITHUB_ENV
+        
+        echo "Backup created. Current image: $CURRENT_IMAGE"
+    
+    - name: Deploy to ECS Production
+      run: |
+        # Update ECS task definition with new image
+        aws ecs describe-task-definition \
+          --task-definition bitaxe-production \
+          --query taskDefinition > task-def.json
+        
+        # Update image in task definition
+        jq '.containerDefinitions[0].image = "${{ needs.build-and-push.outputs.image-tag }}"' \
+          task-def.json > updated-task-def.json
+        
+        # Register new task definition
+        aws ecs register-task-definition \
+          --cli-input-json file://updated-task-def.json \
+          --query 'taskDefinition.taskDefinitionArn' \
+          --output text > task-def-arn.txt
+        
+        # Update service with rolling deployment
+        aws ecs update-service \
+          --cluster bitaxe-production \
+          --service bitaxe-web-production \
+          --task-definition $(cat task-def-arn.txt) \
+          --deployment-configuration maximumPercent=200,minimumHealthyPercent=50 \
+          --force-new-deployment
+        
+        # Wait for deployment to complete
+        aws ecs wait services-stable \
+          --cluster bitaxe-production \
+          --services bitaxe-web-production \
+          --timeout 900
+    
+    - name: Post-deployment health checks
+      id: health-check
+      run: |
+        echo "Running post-deployment health checks..."
+        
+        # Wait for service to stabilize
+        sleep 120
+        
+        # Health check
+        for i in {1..10}; do
+          if curl -f -s https://bitaxe.example.com/health; then
+            echo "Health check $i/10 passed"
+            sleep 10
+          else
+            echo "Health check $i/10 failed"
+            echo "HEALTH_CHECK_FAILED=true" >> $GITHUB_ENV
+            exit 1
+          fi
+        done
+        
+        # API checks
+        curl -f https://bitaxe.example.com/api/v1/status
+        
+        # Database connectivity check
+        curl -f https://bitaxe.example.com/api/v1/miners
+        
+        echo "All health checks passed ✅"
+    
+    - name: Run production smoke tests
+      run: |
+        # Critical functionality tests
+        python -c "
+        import requests
+        import sys
+        
+        base_url = 'https://bitaxe.example.com'
+        
+        # Test critical endpoints
+        endpoints = [
+            '/health',
+            '/api/v1/status',
+            '/api/v1/miners',
+            '/monitoring/metrics'
+        ]
+        
+        for endpoint in endpoints:
+            try:
+                response = requests.get(f'{base_url}{endpoint}', timeout=30)
+                if response.status_code == 200:
+                    print(f'✅ {endpoint} - OK')
+                else:
+                    print(f'❌ {endpoint} - Status: {response.status_code}')
+                    sys.exit(1)
+            except Exception as e:
+                print(f'❌ {endpoint} - Error: {e}')
+                sys.exit(1)
+        
+        print('All smoke tests passed!')
+        "
+    
+    - name: Rollback on failure
+      if: failure() && env.HEALTH_CHECK_FAILED == 'true'
+      run: |
+        echo "🚨 Deployment failed - initiating rollback"
+        
+        # Rollback to previous image
+        jq '.containerDefinitions[0].image = env.ROLLBACK_IMAGE' \
+          backup-task-def.json > rollback-task-def.json
+        
+        # Register rollback task definition
+        aws ecs register-task-definition \
+          --cli-input-json file://rollback-task-def.json \
+          --query 'taskDefinition.taskDefinitionArn' \
+          --output text > rollback-task-def-arn.txt
+        
+        # Rollback service
+        aws ecs update-service \
+          --cluster bitaxe-production \
+          --service bitaxe-web-production \
+          --task-definition $(cat rollback-task-def-arn.txt) \
+          --force-new-deployment
+        
+        # Wait for rollback to complete
+        aws ecs wait services-stable \
+          --cluster bitaxe-production \
+          --services bitaxe-web-production \
+          --timeout 600
+        
+        echo "Rollback completed"
+    
+    - name: Update deployment status
+      run: |
+        # Create deployment record
+        cat > deployment-record.json << EOF
+        {
+          "deployment_id": "${{ github.run_id }}",
+          "image": "${{ needs.build-and-push.outputs.image-tag }}",
+          "commit": "${{ github.sha }}",
+          "deployed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+          "deployed_by": "${{ github.actor }}",
+          "environment": "production",
+          "status": "success"
+        }
+        EOF
+        
+        # Store deployment record (could be sent to a database or monitoring system)
+        echo "Deployment record created"
+        cat deployment-record.json
+    
+    - name: Notify deployment success
+      uses: 8398a7/action-slack@v3
+      if: success()
+      with:
+        status: success
+        text: |
+          🚀 Production deployment successful!
+          Image: ${{ needs.build-and-push.outputs.image-tag }}
+          Commit: ${{ github.sha }}
+          Environment: https://bitaxe.example.com
+          Deployed by: ${{ github.actor }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    
+    - name: Notify deployment failure
+      uses: 8398a7/action-slack@v3
+      if: failure()
+      with:
+        status: failure
+        text: |
+          🚨 Production deployment failed!
+          Image: ${{ needs.build-and-push.outputs.image-tag }}
+          Commit: ${{ github.sha }}
+          Action: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Logs>
+          Rollback status: ${{ env.HEALTH_CHECK_FAILED == 'true' && 'Initiated' || 'Not needed' }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # Post-deployment monitoring
+  post-deployment-monitoring:
+    name: Post-deployment Monitoring
+    runs-on: ubuntu-latest
+    needs: deploy-production
+    if: success()
+    
+    steps:
+    - name: Setup monitoring alerts
+      run: |
+        echo "Setting up enhanced monitoring for new deployment..."
+        
+        # This would typically involve:
+        # - Increasing monitoring sensitivity
+        # - Setting up deployment-specific alerts
+        # - Checking key metrics
+        
+        # For now, we'll simulate this
+        sleep 60
+    
+    - name: Check key metrics
+      run: |
+        python -c "
+        import requests
+        import json
+        import time
+        
+        # Monitor key metrics for 5 minutes
+        base_url = 'https://bitaxe.example.com'
+        
+        for i in range(5):
+            try:
+                response = requests.get(f'{base_url}/monitoring/metrics', timeout=30)
+                if response.status_code == 200:
+                    metrics = response.json()
+                    
+                    # Check critical metrics
+                    cpu_usage = metrics.get('system', {}).get('cpu_percent', 0)
+                    memory_usage = metrics.get('system', {}).get('memory_percent', 0)
+                    error_rate = metrics.get('application', {}).get('error_rate', 0)
+                    
+                    print(f'Check {i+1}/5: CPU={cpu_usage}%, Memory={memory_usage}%, Errors={error_rate}%')
+                    
+                    # Alert if metrics are concerning
+                    if cpu_usage > 80 or memory_usage > 85 or error_rate > 5:
+                        print(f'⚠️ High resource usage detected!')
+                    else:
+                        print('✅ Metrics look good')
+                        
+                else:
+                    print(f'❌ Failed to get metrics: {response.status_code}')
+                    
+            except Exception as e:
+                print(f'❌ Metrics check failed: {e}')
+            
+            time.sleep(60)  # Wait 1 minute between checks
+        
+        print('Post-deployment monitoring completed')
+        "
+    
+    - name: Generate deployment report
+      run: |
+        cat > deployment-report.md << EOF
+        # Production Deployment Report
+        
+        **Deployment ID:** ${{ github.run_id }}
+        **Image:** ${{ needs.build-and-push.outputs.image-tag }}
+        **Commit:** ${{ github.sha }}
+        **Deployed by:** ${{ github.actor }}
+        **Deployment time:** $(date -u +%Y-%m-%dT%H:%M:%SZ)
+        
+        ## Status
+        ✅ Deployment successful
+        ✅ Health checks passed
+        ✅ Smoke tests passed
+        ✅ Post-deployment monitoring completed
+        
+        ## Next Steps
+        - Monitor application metrics for the next 24 hours
+        - Review error logs and performance metrics
+        - Consider gradual traffic increase if using blue-green deployment
+        
+        EOF
+        
+        echo "Deployment report generated"
+        cat deployment-report.md
+    
+    - name: Upload deployment artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: deployment-artifacts
+        path: |
+          deployment-record.json
+          deployment-report.md

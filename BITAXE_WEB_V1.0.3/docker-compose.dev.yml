@@ -1,0 +1,122 @@
+version: '3.8'
+
+services:
+  # Development application
+  bitaxe-web-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: bitaxe-web-dev
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+      - "5001:5001"  # Debug port
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+      - DATABASE_URL=postgresql://bitaxe:bitaxe123@postgres-dev:5432/bitaxe_dev
+      - REDIS_URL=redis://redis-dev:6379/0
+      - OPENWEATHERMAP_API_KEY=${OPENWEATHERMAP_API_KEY:-test_key}
+      - JWT_SECRET_KEY=dev-secret-key
+    volumes:
+      - .:/app
+      - bitaxe_dev_data:/app/data
+      - bitaxe_dev_models:/app/models
+      - bitaxe_dev_logs:/app/logs
+    depends_on:
+      - postgres-dev
+      - redis-dev
+    networks:
+      - bitaxe-dev-network
+
+  # Development PostgreSQL database
+  postgres-dev:
+    image: postgres:15-alpine
+    container_name: bitaxe-postgres-dev
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=bitaxe_dev
+      - POSTGRES_USER=bitaxe
+      - POSTGRES_PASSWORD=bitaxe123
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    ports:
+      - "5433:5432"
+    networks:
+      - bitaxe-dev-network
+
+  # Development Redis
+  redis-dev:
+    image: redis:7-alpine
+    container_name: bitaxe-redis-dev
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_dev_data:/data
+    ports:
+      - "6380:6379"
+    networks:
+      - bitaxe-dev-network
+
+  # Test database for running tests
+  postgres-test:
+    image: postgres:15-alpine
+    container_name: bitaxe-postgres-test
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=bitaxe_test
+      - POSTGRES_USER=bitaxe
+      - POSTGRES_PASSWORD=bitaxe123
+    volumes:
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    ports:
+      - "5434:5432"
+    networks:
+      - bitaxe-dev-network
+
+  # Jupyter notebook for ML development
+  jupyter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: bitaxe-jupyter
+    restart: unless-stopped
+    ports:
+      - "8888:8888"
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+      - DATABASE_URL=postgresql://bitaxe:bitaxe123@postgres-dev:5432/bitaxe_dev
+    volumes:
+      - .:/app
+      - jupyter_data:/home/bitaxe/.jupyter
+    command: >
+      bash -c "pip install jupyterlab ipython-sql psycopg2-binary matplotlib seaborn &&
+               jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root 
+               --NotebookApp.token='' --NotebookApp.password=''"
+    depends_on:
+      - postgres-dev
+    networks:
+      - bitaxe-dev-network
+
+# Development volumes
+volumes:
+  bitaxe_dev_data:
+    driver: local
+  bitaxe_dev_models:
+    driver: local
+  bitaxe_dev_logs:
+    driver: local
+  postgres_dev_data:
+    driver: local
+  redis_dev_data:
+    driver: local
+  jupyter_data:
+    driver: local
+
+# Development network
+networks:
+  bitaxe-dev-network:
+    driver: bridge
