@@ -18,7 +18,7 @@ class ErrorResponse(APIResponse):
     error: Dict[str, Any] = Field(..., description="Error details")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "success": False,
                 "message": "Validation failed",
@@ -93,7 +93,7 @@ class MinerStatus(BaseModel):
     last_seen: datetime = Field(..., description="Last data update timestamp")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "ip": "192.168.1.100",
                 "hostname": "bitaxe-001",
@@ -128,7 +128,7 @@ class MinerSettings(BaseModel):
         return v
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "frequency": 800,
                 "core_voltage": 1200,
@@ -160,7 +160,7 @@ class MinersSummary(BaseModel):
     timestamp: datetime = Field(..., description="Summary timestamp")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "total_miners": 5,
                 "online_miners": 4,
@@ -182,13 +182,13 @@ class MinersSummaryResponse(APIResponse):
 # Benchmark Models
 class BenchmarkRequest(BaseModel):
     """Benchmark request model"""
-    ip: str = Field(..., description="Miner IP address", regex=r'^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$')
+    ip: str = Field(..., description="Miner IP address", pattern=r'^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$')
     frequency: int = Field(..., ge=400, le=1200, description="Frequency in MHz")
     core_voltage: int = Field(..., ge=800, le=1500, description="Core voltage in mV")
     duration: int = Field(600, ge=60, le=7200, description="Benchmark duration in seconds")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "ip": "192.168.1.100",
                 "frequency": 800,
@@ -215,7 +215,7 @@ class MultiBenchmarkRequest(BaseModel):
         return v
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "ips": ["192.168.1.100", "192.168.1.101"],
                 "frequency": 800,
@@ -242,7 +242,7 @@ class BenchmarkResult(BaseModel):
     timestamp: datetime = Field(..., description="Benchmark completion timestamp")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "id": 123,
                 "ip": "192.168.1.100",
@@ -277,7 +277,7 @@ class BenchmarkStatus(BaseModel):
     total_active: int = Field(..., description="Number of active benchmarks")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "active_benchmarks": ["192.168.1.100", "192.168.1.101"],
                 "total_active": 2
@@ -309,7 +309,7 @@ class Event(BaseModel):
     severity: EventSeverity = Field(..., description="Event severity")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "id": 456,
                 "timestamp": "2024-07-27T10:30:45.123Z",
@@ -354,7 +354,7 @@ class ComponentHealth(BaseModel):
     duration_ms: float = Field(..., description="Health check duration in milliseconds")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "component": "database",
                 "status": "healthy",
@@ -380,7 +380,7 @@ class SystemHealth(BaseModel):
     checks: Dict[str, ComponentHealth] = Field(..., description="Individual component health")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "overall_status": "healthy",
                 "timestamp": "2024-07-27T10:30:45.123Z",
@@ -417,7 +417,7 @@ class ConfigUpdate(BaseModel):
     value: str = Field(..., description="Configuration value")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "key": "settings.benchmark_interval_sec",
                 "value": "3600"
@@ -437,7 +437,7 @@ class LoginRequest(BaseModel):
     password: str = Field(..., min_length=1, description="Password")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "username": "admin",
                 "password": "password123"
@@ -450,7 +450,7 @@ class TokenResponse(APIResponse):
     data: Dict[str, str] = Field(..., description="Authentication token data")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "success": True,
                 "data": {
@@ -469,7 +469,7 @@ class UserInfo(BaseModel):
     permissions: List[str] = Field(..., description="User permissions")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "username": "admin",
                 "roles": ["admin", "operator"],

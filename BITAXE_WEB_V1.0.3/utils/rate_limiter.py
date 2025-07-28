@@ -9,7 +9,7 @@ from functools import wraps
 from flask import request, jsonify, g
 from collections import defaultdict, deque
 
-from logging.structured_logger import get_logger
+from bitaxe_logging.structured_logger import get_logger
 
 logger = get_logger("bitaxe.rate_limiter")
 

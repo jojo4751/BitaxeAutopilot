@@ -6,7 +6,7 @@ from typing import Dict, Any, Optional, List
 from functools import wraps
 from flask import request, jsonify, current_app
 
-from logging.structured_logger import get_logger
+from bitaxe_logging.structured_logger import get_logger
 from exceptions.custom_exceptions import (
     ValidationError, ServiceError, ErrorCode
 )

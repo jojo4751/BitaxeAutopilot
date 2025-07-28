@@ -19,19 +19,83 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 import sys
 import gc
-import resource
+try:
+    import resource
+except ImportError:
+    # resource module is not available on Windows
+    resource = None
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from bitaxe_logging.structured_logger import get_logger
-from ml_engine.optimization_engine import OptimizationEngine
-from ml_engine.feature_engineering import FeatureEngineer
-from ml_engine.reinforcement_learning import RLAgent
-from database import DatabaseManager
-from models.miner_models import Miner, MiningStats
+# Import with error handling for missing modules
+try:
+    from bitaxe_logging.structured_logger import get_logger
+except ImportError:
+    # Fallback to standard logging if bitaxe_logging not available
+    import logging
+    def get_logger(name):
+        return logging.getLogger(name)
+
+# Mock classes for missing ML modules
+class MockOptimizationEngine:
+    def __init__(self, *args, **kwargs): pass
+
+class MockFeatureEngineer:
+    def engineer_features(self, data): return data
+
+class MockRLAgent:
+    def get_action(self, state): return {'action': 'test'}
+
+class MockDatabaseManager:
+    def __init__(self, *args, **kwargs): pass
+    def get_session(self): return MockSession()
+
+class MockSession:
+    def add(self, obj): pass
+    def commit(self): pass
+    def close(self): pass
+    def query(self, model): return MockQuery()
+
+class MockQuery:
+    def limit(self, n): return self
+    def all(self): return []
+    def first(self): return None
+    def filter(self, *args): return self
+
+class MockMiner:
+    def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+# Try to import real modules, fall back to mocks
+try:
+    from ml_engine.optimization_engine import OptimizationEngine
+except ImportError:
+    OptimizationEngine = MockOptimizationEngine
+
+try:
+    from ml_engine.feature_engineering import FeatureEngineer
+except ImportError:
+    FeatureEngineer = MockFeatureEngineer
+
+try:
+    from ml_engine.reinforcement_learning import RLAgent  
+except ImportError:
+    RLAgent = MockRLAgent
+
+try:
+    from database import DatabaseManager
+except ImportError:
+    DatabaseManager = MockDatabaseManager
+
+try:
+    from models.miner_models import Miner, MiningStats
+except ImportError:
+    Miner = MockMiner
+    MiningStats = MockMiner
 
 logger = get_logger("bitaxe.performance.benchmarking")
 

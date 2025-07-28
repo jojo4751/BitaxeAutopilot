@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime
 from typing import Dict, Any
 
-from logging.structured_logger import get_logger
+from bitaxe_logging.structured_logger import get_logger
 from utils.error_handlers import api_error_boundary
 from utils.rate_limiter import rate_limit
 from auth.auth_service import require_auth, require_permissions, get_auth_service

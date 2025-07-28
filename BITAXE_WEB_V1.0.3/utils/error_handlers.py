@@ -6,7 +6,7 @@ from flask import request, jsonify, render_template
 from werkzeug.exceptions import HTTPException
 from pydantic import ValidationError
 
-from logging.structured_logger import get_logger
+from bitaxe_logging.structured_logger import get_logger
 from exceptions.custom_exceptions import (
     BitaxeException, ErrorCode, ValidationError as CustomValidationError,
     MinerError, DatabaseError, BenchmarkError, TemperatureError,
