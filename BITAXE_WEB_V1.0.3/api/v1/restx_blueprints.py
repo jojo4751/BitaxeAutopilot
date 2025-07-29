@@ -393,4 +393,4 @@ def register_restx_api(app):
     logger.info("Flask-RESTX API registered",
                version=api.version,
                title=api.title,
-               doc_url=api.doc)
+               doc_url=str(api.doc))

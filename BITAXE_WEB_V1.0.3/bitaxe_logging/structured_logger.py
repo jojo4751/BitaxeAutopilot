@@ -58,7 +58,7 @@ class JSONFormatter(logging.Formatter):
         if record.levelno >= logging.ERROR and not record.exc_info:
             log_data["stack_trace"] = traceback.format_stack()
         
-        return json.dumps(log_data, ensure_ascii=False)
+        return json.dumps(log_data, ensure_ascii=False, default=str)
 
 
 class StructuredLogger:

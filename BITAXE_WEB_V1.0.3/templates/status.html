@@ -4,16 +4,16 @@
 <div class="row">
   {% for miner in miners %}
   <div class="col-md-4 mb-3">
-    <div class="card {% if miner.temp >= 75 %}border-danger{% elif miner.hashRate <= 0 %}border-warning{% else %}border-success{% endif %}">
+    <div class="card {% if miner.temp and miner.temp >= 75 %}border-danger{% elif not miner.hashRate or miner.hashRate <= 0 %}border-warning{% else %}border-success{% endif %}">
       <div class="card-body">
         <h5 class="card-title">{{ miner.hostname or miner.ip }}</h5>
         <p class="card-text">
-          Temperatur: <strong>{{ miner.temp }} °C</strong><br>
-          Hashrate: <strong>{{ miner.hashRate|round(2) }} GH/s</strong><br>
-          GH/W: <strong>{% if miner.hashRate and miner.power %}{{ (miner.hashRate / miner.power)|round(2) }}{% else %}–{% endif %}</strong><br>
+          Temperatur: <strong>{{ (miner.temp or 0)|round(1) }} °C</strong><br>
+          Hashrate: <strong>{{ (miner.hashRate or 0)|round(2) }} GH/s</strong><br>
+          GH/W: <strong>{% if miner.hashRate and miner.power and miner.power > 0 %}{{ (miner.hashRate / miner.power)|round(2) }}{% else %}–{% endif %}</strong><br>
           Shares/h: <strong>{{ miner.shares_accepted_delta or 0 }}</strong><br>
-          Spannung: <strong>{{ miner.coreVoltage }} mV</strong><br>
-          Frequenz: <strong>{{ miner.frequency }} MHz</strong><br>
+          Spannung: <strong>{{ miner.coreVoltage or 0 }} mV</strong><br>
+          Frequenz: <strong>{{ miner.frequency or 0 }} MHz</strong><br>
           Zeit: <small>{{ miner.timestamp }}</small>
         </p>
       </div>

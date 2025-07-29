@@ -1,5 +1,7 @@
 import os
 import json
+import requests
+import threading
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response
 
@@ -26,6 +28,15 @@ database_service = container.get_database_service()
 miner_service = container.get_miner_service()
 benchmark_service = container.get_benchmark_service()
 autopilot_service = container.get_autopilot_service()
+
+# Helper functions
+def log_event(ip, event_type, message):
+    """Log event to database - stub implementation"""
+    print(f"[{event_type}] {ip}: {message}")
+
+def run_benchmark(ip, voltage, frequency, benchmark_time):
+    """Run benchmark - stub implementation"""
+    print(f"Running benchmark for {ip}: {frequency}MHz @ {voltage}mV for {benchmark_time}s")
 
 # ----------------------------
 # DASHBOARD + DETAILS
@@ -69,9 +80,10 @@ def miner_dashboard(ip):
 
 @app.route("/control", methods=["GET", "POST"])
 def control():
-    freq_list = cfg["settings"]["freq_list"]
-    volt_list = cfg["settings"]["volt_list"]
-    ips = cfg["config"]["ips"]
+    config = config_service.get_config()
+    freq_list = config.get("settings", {}).get("freq_list", [])
+    volt_list = config.get("settings", {}).get("volt_list", [])
+    ips = config.get("config", {}).get("ips", [])
     message = ""
 
     if request.method == "POST":
@@ -94,7 +106,7 @@ def control():
                            volt_list=volt_list,
                            ips=ips,
                            message=message,
-                           benchmark_interval=cfg["settings"]["benchmark_interval_sec"])
+                           benchmark_interval=config.get("settings", {}).get("benchmark_interval_sec", 600))
 
 # ----------------------------
 # BENCHMARKS STARTEN
