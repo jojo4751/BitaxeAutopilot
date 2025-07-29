@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2 style="color: {{ color }}">Miner Dashboard</h2>
+  <form method="get" action="/dashboard/">
+    <select name="ip" onchange="location.href='/dashboard/' + this.value" class="form-select">
+      {% for other_ip in miners %}
+        <option value="{{ other_ip }}" {% if ip == other_ip %}selected{% endif %}>{{ other_ip }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <h4 class="card-title">{{ miner.hostname or ip }}</h4>
+    <p>
+      <strong>Hashrate:</strong> {{ miner.hashRate }} GH/s<br>
+      <strong>Effizienz:</strong> {{ (miner.hashRate / miner.power) | round(2) }} GH/W<br>
+      <strong>Temp:</strong> {{ miner.temp }} °C<br>
+      <strong>Fan:</strong> {{ miner.fanrpm }} RPM<br>
+      <strong>Voltage:</strong> {{ miner.coreVoltage }} mV<br>
+      <strong>Frequency:</strong> {{ miner.frequency }} MHz
+    </p>
+  </div>
+</div>
+
+<div id="plot" style="height:350px;"></div>
+
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script>
+  const traceData = {{ plot_data.traces | tojson | safe }};
+  Plotly.newPlot("plot", traceData, {
+    template: "plotly_white",
+    margin: { t: 20, b: 30, l: 40, r: 10 },
+    line: { color: "{{ color }}" },
+    showlegend: true
+  });
+</script>
+
+{% endblock %}

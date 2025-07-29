@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en" class="dark-theme">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>{% block title %}BitAxe Mining Dashboard{% endblock %}</title>
+    
+    <!-- Preload critical fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons for modern iconography -->
+    <link rel="stylesheet" href="https://unpkg.com/lucide@latest/dist/umd/lucide.css">
+    
+    <!-- Custom CSS Framework -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dark-theme.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#0a0a0b">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    
+    <!-- Block for additional head content -->
+    {% block head %}{% endblock %}
+</head>
+<body class="cyber-dashboard">
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-screen">
+        <div class="loading-animation">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Initializing Mining Dashboard...</div>
+        </div>
+    </div>
+
+    <!-- Mobile-First Navigation -->
+    <nav class="navbar" id="main-navbar">
+        <div class="navbar-container">
+            <!-- Brand -->
+            <div class="navbar-brand">
+                <div class="brand-icon">
+                    <i data-lucide="zap" class="brand-icon-svg"></i>
+                </div>
+                <span class="brand-text">BitAxe</span>
+                <div class="brand-status">
+                    <div class="status-indicator status-online" id="connection-status"></div>
+                </div>
+            </div>
+
+            <!-- Desktop Navigation -->
+            <div class="navbar-nav desktop-nav">
+                <a href="/dashboard" class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
+                    <i data-lucide="activity"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="/control" class="nav-link {% if request.endpoint == 'control' %}active{% endif %}">
+                    <i data-lucide="settings"></i>
+                    <span>Control</span>
+                </a>
+                <a href="/benchmarks" class="nav-link {% if request.endpoint == 'benchmarks' %}active{% endif %}">
+                    <i data-lucide="bar-chart-3"></i>
+                    <span>Benchmarks</span>
+                </a>
+                <a href="/history" class="nav-link {% if request.endpoint == 'history' %}active{% endif %}">
+                    <i data-lucide="trending-up"></i>
+                    <span>Analytics</span>
+                </a>
+                <a href="/events" class="nav-link {% if request.endpoint == 'events' %}active{% endif %}">
+                    <i data-lucide="bell"></i>
+                    <span>Events</span>
+                    <span class="notification-badge" id="events-badge">0</span>
+                </a>
+            </div>
+
+            <!-- User Actions -->
+            <div class="navbar-actions">
+                <button class="btn-icon" id="theme-toggle" title="Toggle Theme">
+                    <i data-lucide="palette"></i>
+                </button>
+                <button class="btn-icon" id="settings-toggle" title="Settings">
+                    <i data-lucide="cog"></i>
+                </button>
+                <button class="btn-icon mobile-menu-toggle" id="mobile-menu-toggle">
+                    <i data-lucide="menu"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Mobile Navigation Panel -->
+        <div class="mobile-nav-panel" id="mobile-nav-panel">
+            <div class="mobile-nav-content">
+                <a href="/dashboard" class="mobile-nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
+                    <i data-lucide="activity"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="/control" class="mobile-nav-link {% if request.endpoint == 'control' %}active{% endif %}">
+                    <i data-lucide="settings"></i>
+                    <span>Control</span>
+                </a>
+                <a href="/benchmarks" class="mobile-nav-link {% if request.endpoint == 'benchmarks' %}active{% endif %}">
+                    <i data-lucide="bar-chart-3"></i>
+                    <span>Benchmarks</span>
+                </a>
+                <a href="/history" class="mobile-nav-link {% if request.endpoint == 'history' %}active{% endif %}">
+                    <i data-lucide="trending-up"></i>
+                    <span>Analytics</span>
+                </a>
+                <a href="/events" class="mobile-nav-link {% if request.endpoint == 'events' %}active{% endif %}">
+                    <i data-lucide="bell"></i>
+                    <span>Events</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="main-content" id="main-content">
+        <!-- Page Header -->
+        <header class="page-header">
+            <div class="page-title">
+                <h1>{% block page_title %}Dashboard{% endblock %}</h1>
+                <div class="page-subtitle">{% block page_subtitle %}Real-time mining control center{% endblock %}</div>
+            </div>
+            <div class="page-actions">
+                {% block page_actions %}{% endblock %}
+            </div>
+        </header>
+
+        <!-- Alert System -->
+        <div class="alert-container" id="alert-container">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }} alert-dismissible">
+                            <div class="alert-content">
+                                <i data-lucide="{% if category == 'success' %}check-circle{% elif category == 'warning' %}alert-triangle{% elif category == 'error' %}x-circle{% else %}info{% endif %}"></i>
+                                <span>{{ message }}</span>
+                            </div>
+                            <button class="alert-close" onclick="this.parentElement.remove()">
+                                <i data-lucide="x"></i>
+                            </button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        </div>
+
+        <!-- Main Content Block -->
+        <div class="content-wrapper">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <!-- Bottom Tab Bar (Mobile) -->
+    <div class="bottom-tab-bar" id="bottom-tab-bar">
+        <a href="/dashboard" class="tab-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
+            <i data-lucide="activity"></i>
+            <span>Dashboard</span>
+        </a>
+        <a href="/control" class="tab-item {% if request.endpoint == 'control' %}active{% endif %}">
+            <i data-lucide="settings"></i>
+            <span>Control</span>
+        </a>
+        <a href="/benchmarks" class="tab-item {% if request.endpoint == 'benchmarks' %}active{% endif %}">
+            <i data-lucide="bar-chart-3"></i>
+            <span>Benchmarks</span>
+        </a>
+        <a href="/history" class="tab-item {% if request.endpoint == 'history' %}active{% endif %}">
+            <i data-lucide="trending-up"></i>
+            <span>Analytics</span>
+        </a>
+        <a href="/events" class="tab-item {% if request.endpoint == 'events' %}active{% endif %}">
+            <i data-lucide="bell"></i>
+            <span>Events</span>
+        </a>
+    </div>
+
+    <!-- Floating Action Button -->
+    <div class="fab-container">
+        <button class="fab" id="quick-actions-fab">
+            <i data-lucide="plus"></i>
+        </button>
+        <div class="fab-menu" id="fab-menu">
+            <button class="fab-item" onclick="window.location.href='/control'">
+                <i data-lucide="settings"></i>
+                <span>Quick Control</span>
+            </button>
+            <button class="fab-item" onclick="startQuickBenchmark()">
+                <i data-lucide="play"></i>
+                <span>Quick Benchmark</span>
+            </button>
+            <button class="fab-item" onclick="exportData()">
+                <i data-lucide="download"></i>
+                <span>Export Data</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Settings Panel -->
+    <div class="settings-panel" id="settings-panel">
+        <div class="settings-header">
+            <h3>Dashboard Settings</h3>
+            <button class="btn-icon" onclick="closeSettings()">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <div class="settings-content">
+            <div class="setting-group">
+                <label class="setting-label">Theme</label>
+                <div class="theme-selector">
+                    <button class="theme-option active" data-theme="cyber-dark">Cyber Dark</button>
+                    <button class="theme-option" data-theme="neon-blue">Neon Blue</button>
+                    <button class="theme-option" data-theme="mining-green">Mining Green</button>
+                </div>
+            </div>
+            <div class="setting-group">
+                <label class="setting-label">Refresh Rate</label>
+                <select class="setting-select" id="refresh-rate">
+                    <option value="1000">1 second</option>
+                    <option value="5000" selected>5 seconds</option>
+                    <option value="10000">10 seconds</option>
+                    <option value="30000">30 seconds</option>
+                </select>
+            </div>
+            <div class="setting-group">
+                <label class="setting-label">Animations</label>
+                <div class="setting-toggle">
+                    <input type="checkbox" id="animations-toggle" checked>
+                    <label for="animations-toggle" class="toggle-slider"></label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Core JavaScript -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script src="{{ url_for('static', filename='js/dashboard-core.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/theme-system.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/mobile-interactions.js') }}"></script>
+    
+    <!-- Block for additional scripts -->
+    {% block scripts %}{% endblock %}
+
+    <!-- Initialize Dashboard -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize Lucide icons
+            lucide.createIcons();
+            
+            // Initialize dashboard core
+            if (window.DashboardCore) {
+                window.DashboardCore.init();
+            }
+            
+            // Hide loading screen
+            setTimeout(() => {
+                const loadingScreen = document.getElementById('loading-screen');
+                if (loadingScreen) {
+                    loadingScreen.classList.add('fade-out');
+                    setTimeout(() => loadingScreen.remove(), 500);
+                }
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Event-Log (Letzte 100 Einträge)</h2>
+<table class="table table-striped table-bordered table-sm">
+    <thead class="table-dark">
+        <tr>
+            <th>Zeitstempel</th>
+            <th>Miner</th>
+            <th>Typ</th>
+            <th>Beschreibung</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for event in events %}
+        <tr class="{% if event.event_type == 'TEMP_OVERHEAT' %}table-danger{% elif event.event_type == 'HASHRATE_ZERO' %}table-warning{% elif event.event_type == 'EFFICIENCY_DRIFT' %}table-info{% else %}{% endif %}">
+            <td>{{ event.timestamp }}</td>
+            <td>{{ event.hostname or event.ip }}</td>
+            <td><strong>{{ event.event_type }}</strong></td>
+            <td>{{ event.description }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

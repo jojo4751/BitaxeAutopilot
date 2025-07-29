@@ -1,0 +1,19 @@
+<div class="card mb-4">
+  <div class="card-header">
+    {{ miner.hostname or miner.ip }}
+  </div>
+  <div class="card-body">
+    <h5 class="card-title">Hashrate: {{ miner.hashRate }} GH/s</h5>
+    <p class="card-text">
+      Temperatur: {{ miner.temp }} °C<br>
+      Fan: {{ miner.fanrpm }} RPM<br>
+      Power: {{ miner.power }} W<br>
+      Effizienz: 
+      {% if miner.power > 0 %}
+        {{ (miner.hashRate / miner.power) | round(2) }} GH/W
+      {% else %}
+        –
+      {% endif %}
+    </p>
+  </div>
+</div>

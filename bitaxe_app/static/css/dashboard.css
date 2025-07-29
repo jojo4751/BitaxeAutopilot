@@ -1,0 +1,739 @@
+/* ===========================
+   DASHBOARD SPECIFIC STYLES
+   Mining Dashboard Components
+   =========================== */
+
+/* ===========================
+   DASHBOARD GRID SYSTEM
+   =========================== */
+
+.dashboard-grid {
+  display: grid;
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-xl);
+}
+
+/* Mobile: Single column */
+@media (max-width: 767px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-md);
+  }
+}
+
+/* Tablet: Two columns */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .dashboard-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Desktop: Multi-column */
+@media (min-width: 1024px) {
+  .dashboard-grid {
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  }
+  
+  .dashboard-grid.grid-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  
+  .dashboard-grid.grid-4 {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* Ultra-wide: Advanced layouts */
+@media (min-width: 1440px) {
+  .dashboard-grid.grid-auto {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  }
+}
+
+/* Grid Item Spans */
+.grid-span-2 {
+  grid-column: span 2;
+}
+
+.grid-span-full {
+  grid-column: 1 / -1;
+}
+
+/* ===========================
+   FLEET OVERVIEW SECTION
+   =========================== */
+
+.fleet-overview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-2xl);
+}
+
+@media (max-width: 767px) {
+  .fleet-overview {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-md);
+  }
+}
+
+.fleet-stat-card {
+  background: var(--gradient-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-lg);
+  padding: var(--spacing-lg);
+  text-align: center;
+  transition: all var(--transition-normal);
+  position: relative;
+  overflow: hidden;
+}
+
+.fleet-stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--gradient-primary);
+  transform: scaleX(0);
+  transition: transform var(--transition-normal);
+}
+
+.fleet-stat-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-xl), var(--glow-primary);
+  border-color: var(--color-accent-primary);
+}
+
+.fleet-stat-card:hover::before {
+  transform: scaleX(1);
+}
+
+.fleet-stat-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto var(--spacing-md);
+  background: var(--gradient-primary);
+  border-radius: var(--border-radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--glow-primary);
+}
+
+.fleet-stat-icon svg {
+  width: 24px;
+  height: 24px;
+  color: white;
+}
+
+.fleet-stat-value {
+  font-size: 2rem;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  margin-bottom: var(--spacing-xs);
+  font-family: var(--font-mono);
+}
+
+.fleet-stat-label {
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.fleet-stat-change {
+  font-size: 0.8rem;
+  font-weight: var(--font-weight-semibold);
+  margin-top: var(--spacing-xs);
+}
+
+.fleet-stat-change.positive {
+  color: var(--color-success);
+}
+
+.fleet-stat-change.negative {
+  color: var(--color-danger);
+}
+
+/* ===========================
+   MINER CARDS
+   =========================== */
+
+.miner-card {
+  background: var(--gradient-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-lg);
+  overflow: hidden;
+  transition: all var(--transition-normal);
+  position: relative;
+}
+
+.miner-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-xl);
+  border-color: var(--color-accent-primary);
+}
+
+.miner-card.status-online {
+  border-left: 4px solid var(--color-success);
+}
+
+.miner-card.status-warning {
+  border-left: 4px solid var(--color-warning);
+}
+
+.miner-card.status-error {
+  border-left: 4px solid var(--color-danger);
+}
+
+.miner-card.status-offline {
+  border-left: 4px solid var(--color-text-secondary);
+  opacity: 0.7;
+}
+
+.miner-header {
+  padding: var(--spacing-lg);
+  border-bottom: 1px solid var(--color-border);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.miner-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-sm);
+}
+
+.miner-name {
+  font-size: 1.1rem;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.miner-status {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: 0.8rem;
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.miner-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+.miner-ip {
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+}
+
+.miner-body {
+  padding: var(--spacing-lg);
+}
+
+.miner-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+@media (max-width: 767px) {
+  .miner-stats {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-sm);
+  }
+}
+
+.miner-stat {
+  text-align: center;
+  padding: var(--spacing-sm);
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--color-border);
+}
+
+.miner-stat-value {
+  font-size: 1.25rem;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  margin-bottom: var(--spacing-xs);
+}
+
+.miner-stat-label {
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Color-coded stats */
+.miner-stat.hashrate .miner-stat-value {
+  color: var(--color-hashrate);
+}
+
+.miner-stat.temperature .miner-stat-value {
+  color: var(--color-temperature);
+}
+
+.miner-stat.efficiency .miner-stat-value {
+  color: var(--color-efficiency);
+}
+
+.miner-stat.power .miner-stat-value {
+  color: var(--color-power);
+}
+
+.miner-chart {
+  height: 200px;
+  border-radius: var(--border-radius-sm);
+  overflow: hidden;
+  background: var(--color-secondary-dark);
+}
+
+.miner-footer {
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-top: 1px solid var(--color-border);
+  background: rgba(0, 0, 0, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.miner-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.miner-actions .btn {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: 0.8rem;
+  min-height: 32px;
+}
+
+/* ===========================
+   EXPANDABLE MINER DETAILS
+   =========================== */
+
+.miner-card.expanded {
+  grid-column: 1 / -1;
+}
+
+.miner-details {
+  padding: var(--spacing-lg);
+  border-top: 1px solid var(--color-border);
+  background: rgba(0, 0, 0, 0.1);
+  display: none;
+}
+
+.miner-card.expanded .miner-details {
+  display: block;
+  animation: slideDown var(--transition-normal);
+}
+
+.miner-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+}
+
+.control-group {
+  background: var(--color-card-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-md);
+  padding: var(--spacing-md);
+}
+
+.control-title {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin-bottom: var(--spacing-sm);
+}
+
+/* ===========================
+   REAL-TIME CHARTS
+   =========================== */
+
+.chart-container {
+  background: var(--color-secondary-dark);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-lg);
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-lg);
+}
+
+.chart-title {
+  font-size: 1.1rem;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.chart-controls {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.chart-control-btn {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--color-card-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.chart-control-btn.active,
+.chart-control-btn:hover {
+  background: var(--color-accent-primary);
+  color: white;
+  border-color: var(--color-accent-primary);
+}
+
+.chart-wrapper {
+  height: 300px;
+  border-radius: var(--border-radius-sm);
+  overflow: hidden;
+}
+
+/* ===========================
+   PERFORMANCE INDICATORS
+   =========================== */
+
+.performance-indicators {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.performance-gauge {
+  text-align: center;
+  padding: var(--spacing-lg);
+  background: var(--gradient-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-lg);
+  position: relative;
+}
+
+.gauge-container {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  margin: 0 auto var(--spacing-md);
+}
+
+.gauge-circle {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--color-accent-primary) 0deg,
+    var(--color-accent-primary) var(--gauge-angle, 180deg),
+    var(--color-border) var(--gauge-angle, 180deg),
+    var(--color-border) 360deg
+  );
+  padding: 8px;
+  position: relative;
+}
+
+.gauge-inner {
+  width: 100%;
+  height: 100%;
+  background: var(--color-card-bg);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+
+.gauge-value {
+  font-size: 1.5rem;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+}
+
+.gauge-unit {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  margin-top: -4px;
+}
+
+.gauge-label {
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+  font-weight: var(--font-weight-medium);
+}
+
+/* ===========================
+   BENCHMARK COMPONENTS
+   =========================== */
+
+.benchmark-card {
+  background: var(--gradient-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-lg);
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+}
+
+.benchmark-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-lg);
+}
+
+.benchmark-title {
+  font-size: 1.2rem;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.benchmark-status {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: rgba(255, 171, 0, 0.1);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-warning);
+  font-size: 0.8rem;
+  font-weight: var(--font-weight-medium);
+}
+
+.benchmark-status.running {
+  background: rgba(0, 212, 255, 0.1);
+  border-color: var(--color-accent-primary);
+  color: var(--color-accent-primary);
+}
+
+.benchmark-status.completed {
+  background: rgba(0, 255, 136, 0.1);
+  border-color: var(--color-success);
+  color: var(--color-success);
+}
+
+.benchmark-progress {
+  background: var(--color-secondary-dark);
+  border-radius: var(--border-radius-sm);
+  height: 8px;
+  margin-bottom: var(--spacing-md);
+  overflow: hidden;
+}
+
+.benchmark-progress-bar {
+  height: 100%;
+  background: var(--gradient-primary);
+  border-radius: var(--border-radius-sm);
+  transition: width var(--transition-normal);
+  box-shadow: var(--glow-primary);
+}
+
+.benchmark-results {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--spacing-md);
+}
+
+.benchmark-result {
+  text-align: center;
+  padding: var(--spacing-md);
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--color-border);
+}
+
+.benchmark-result-value {
+  font-size: 1.1rem;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  margin-bottom: var(--spacing-xs);
+}
+
+.benchmark-result-label {
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+  font-weight: var(--font-weight-medium);
+}
+
+/* ===========================
+   EVENT LOG COMPONENTS
+   =========================== */
+
+.event-log {
+  background: var(--color-secondary-dark);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-lg);
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.event-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
+  transition: background var(--transition-fast);
+}
+
+.event-item:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.event-item:last-child {
+  border-bottom: none;
+}
+
+.event-icon {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--border-radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+}
+
+.event-icon.info {
+  background: rgba(0, 212, 255, 0.1);
+  color: var(--color-accent-primary);
+}
+
+.event-icon.success {
+  background: rgba(0, 255, 136, 0.1);
+  color: var(--color-success);
+}
+
+.event-icon.warning {
+  background: rgba(255, 171, 0, 0.1);
+  color: var(--color-warning);
+}
+
+.event-icon.error {
+  background: rgba(255, 51, 102, 0.1);
+  color: var(--color-danger);
+}
+
+.event-content {
+  flex: 1;
+}
+
+.event-message {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+  margin-bottom: var(--spacing-xs);
+}
+
+.event-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-md);
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+}
+
+.event-time {
+  font-family: var(--font-mono);
+}
+
+.event-source {
+  background: var(--color-card-bg);
+  padding: 2px var(--spacing-xs);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+}
+
+/* ===========================
+   RESPONSIVE ADJUSTMENTS
+   =========================== */
+
+@media (max-width: 767px) {
+  .fleet-stat-card {
+    padding: var(--spacing-md);
+  }
+  
+  .fleet-stat-value {
+    font-size: 1.5rem;
+  }
+  
+  .miner-header,
+  .miner-body {
+    padding: var(--spacing-md);
+  }
+  
+  .chart-wrapper {
+    height: 250px;
+  }
+  
+  .performance-indicators {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .gauge-container {
+    width: 100px;
+    height: 100px;
+  }
+  
+  .gauge-value {
+    font-size: 1.2rem;
+  }
+}
+
+/* ===========================
+   DARK MODE OPTIMIZATIONS
+   =========================== */
+
+/* Ensure charts and graphics work well in dark mode */
+.plotly-graph-div {
+  background-color: var(--color-secondary-dark) !important;
+  border-radius: var(--border-radius-md);
+}
+
+/* Custom scrollbars for dashboard elements */
+.event-log::-webkit-scrollbar,
+.settings-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.event-log::-webkit-scrollbar-track,
+.settings-panel::-webkit-scrollbar-track {
+  background: var(--color-card-bg);
+}
+
+.event-log::-webkit-scrollbar-thumb,
+.settings-panel::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+.event-log::-webkit-scrollbar-thumb:hover,
+.settings-panel::-webkit-scrollbar-thumb:hover {
+  background: var(--color-accent-primary);
+}

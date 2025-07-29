@@ -1,0 +1,22 @@
+[Unit]
+Description=BitAxe Web Management Interface V2.0.0
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=bitaxe
+Group=bitaxe
+WorkingDirectory=/opt/bitaxe-web
+Environment=PATH=/opt/bitaxe-web/venv/bin
+Environment=FLASK_ENV=production
+Environment=DATABASE_PATH=/opt/bitaxe-web/data/bitaxe_data.db
+Environment=LOG_LEVEL=INFO
+ExecStart=/opt/bitaxe-web/venv/bin/python app.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

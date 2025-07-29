@@ -1,0 +1,924 @@
+{% extends "base.html" %}
+
+{% block title %}Mining Dashboard - BitAxe{% endblock %}
+{% block page_title %}Mining Dashboard{% endblock %}
+{% block page_subtitle %}Real-time fleet monitoring and control{% endblock %}
+
+{% block page_actions %}
+<div class="page-actions">
+    <button class="btn btn-secondary" onclick="refreshAllData()">
+        <i data-lucide="refresh-cw"></i>
+        Refresh
+    </button>
+    <button class="btn btn-primary" onclick="window.location.href='/control'">
+        <i data-lucide="settings"></i>
+        Quick Control
+    </button>
+</div>
+{% endblock %}
+
+{% block head %}
+<style>
+    /* Dashboard-specific enhancements */
+    .dashboard-grid .miner-card {
+        transition: all 0.3s var(--cubic-bezier);
+    }
+    
+    .dashboard-grid .miner-card:hover {
+        transform: translateY(-8px) scale(1.02);
+    }
+    
+    .performance-ring {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: conic-gradient(
+            from 0deg,
+            var(--color-success) 0deg,
+            var(--color-success) calc(var(--performance, 70) * 3.6deg),
+            var(--color-border) calc(var(--performance, 70) * 3.6deg),
+            var(--color-border) 360deg
+        );
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+    }
+    
+    .performance-ring::before {
+        content: '';
+        width: 46px;
+        height: 46px;
+        background: var(--color-card-bg);
+        border-radius: 50%;
+        position: absolute;
+    }
+    
+    .performance-value {
+        position: relative;
+        z-index: 1;
+        font-size: 0.8rem;
+        font-weight: var(--font-weight-bold);
+        color: var(--color-text-primary);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Fleet Overview Section -->
+<section class="fleet-overview">
+    <div class="fleet-stat-card">
+        <div class="fleet-stat-icon">
+            <i data-lucide="cpu"></i>
+        </div>
+        <div class="fleet-stat-value" id="total-miners">{{ miners|length }}</div>
+        <div class="fleet-stat-label">Total Miners</div>
+        <div class="fleet-stat-change positive" id="miners-change">+0</div>
+    </div>
+
+    <div class="fleet-stat-card">
+        <div class="fleet-stat-icon">
+            <i data-lucide="zap"></i>
+        </div>
+        <div class="fleet-stat-value" id="total-hashrate">
+            {% set total_hashrate = miners|selectattr('hashRate')|map(attribute='hashRate')|sum %}
+            {{ "%.2f"|format(total_hashrate) }}
+        </div>
+        <div class="fleet-stat-label">Total Hashrate (GH/s)</div>
+        <div class="fleet-stat-change positive" id="hashrate-change">+2.5%</div>
+    </div>
+
+    <div class="fleet-stat-card">
+        <div class="fleet-stat-icon">
+            <i data-lucide="thermometer"></i>
+        </div>
+        <div class="fleet-stat-value" id="avg-temperature">
+            {% set temps = miners|selectattr('temp')|map(attribute='temp')|list %}
+            {% if temps %}
+                {{ "%.1f"|format(temps|sum / temps|length) }}°C
+            {% else %}
+                0.0°C
+            {% endif %}
+        </div>
+        <div class="fleet-stat-label">Avg Temperature</div>
+        <div class="fleet-stat-change" id="temp-change">-1.2°C</div>
+    </div>
+
+    <div class="fleet-stat-card">
+        <div class="fleet-stat-icon">
+            <i data-lucide="trending-up"></i>
+        </div>
+        <div class="fleet-stat-value" id="total-efficiency">
+            {% set efficiency = 0 %}
+            {% for miner in miners if miner.hashRate and miner.power and miner.power > 0 %}
+                {% set efficiency = efficiency + (miner.hashRate / miner.power) %}
+            {% endfor %}
+            {{ "%.2f"|format(efficiency if efficiency else 0) }}
+        </div>
+        <div class="fleet-stat-label">Fleet Efficiency (GH/W)</div>
+        <div class="fleet-stat-change positive" id="efficiency-change">+0.8%</div>
+    </div>
+</section>
+
+<!-- Real-time Charts Section -->
+<section class="chart-container grid-span-full">
+    <div class="chart-header">
+        <h3 class="chart-title">Fleet Performance Overview</h3>
+        <div class="chart-controls">
+            <button class="chart-control-btn active" data-timerange="1h">1H</button>
+            <button class="chart-control-btn" data-timerange="6h">6H</button>
+            <button class="chart-control-btn" data-timerange="24h">24H</button>
+            <button class="chart-control-btn" data-timerange="7d">7D</button>
+        </div>
+    </div>
+    <div class="chart-wrapper" id="fleet-overview-chart"></div>
+</section>
+
+<!-- Individual Miner Cards -->
+<section class="dashboard-grid">
+    {% for miner in miners %}
+    <div class="miner-card {% if miner.temp >= 75 %}status-error{% elif miner.temp >= 70 %}status-warning{% elif miner.hashRate > 0 %}status-online{% else %}status-offline{% endif %}" 
+         data-miner-ip="{{ miner.ip }}" 
+         data-swipe="miner-card"
+         data-long-press="context-menu">
+         
+        <!-- Miner Header -->
+        <div class="miner-header">
+            <div class="miner-title">
+                <div class="miner-name">{{ miner.hostname or miner.ip }}</div>
+                <div class="miner-status">
+                    <div class="miner-status-dot {% if miner.temp >= 75 %}status-error{% elif miner.temp >= 70 %}status-warning{% elif miner.hashRate > 0 %}status-online{% else %}status-offline{% endif %}"></div>
+                    <span>{% if miner.hashRate > 0 %}ONLINE{% else %}OFFLINE{% endif %}</span>
+                </div>
+            </div>
+            <div class="miner-ip">{{ miner.ip }}</div>
+        </div>
+
+        <!-- Miner Body -->
+        <div class="miner-body">
+            <!-- Performance Ring -->
+            <div class="performance-indicators">
+                <div class="performance-gauge">
+                    <div class="performance-ring" style="--performance: {{ ((miner.hashRate / 600) * 100) if miner.hashRate else 0 }}">
+                        <div class="performance-value">{{ "%.0f"|format((miner.hashRate / 600) * 100 if miner.hashRate else 0) }}%</div>
+                    </div>
+                    <div class="gauge-label">Performance</div>
+                </div>
+            </div>
+
+            <!-- Miner Stats Grid -->
+            <div class="miner-stats">
+                <div class="miner-stat hashrate">
+                    <div class="miner-stat-value hashrate-value">{{ "%.2f"|format(miner.hashRate) if miner.hashRate else "0.00" }}</div>
+                    <div class="miner-stat-label">GH/s</div>
+                </div>
+
+                <div class="miner-stat temperature">
+                    <div class="miner-stat-value temperature-value">{{ "%.1f"|format(miner.temp) if miner.temp else "0.0" }}</div>
+                    <div class="miner-stat-label">°C</div>
+                </div>
+
+                <div class="miner-stat efficiency">
+                    <div class="miner-stat-value efficiency-value">
+                        {% if miner.power and miner.power > 0 %}
+                            {{ "%.2f"|format(miner.hashRate / miner.power) }}
+                        {% else %}
+                            0.00
+                        {% endif %}
+                    </div>
+                    <div class="miner-stat-label">GH/W</div>
+                </div>
+
+                <div class="miner-stat power">
+                    <div class="miner-stat-value power-value">{{ "%.1f"|format(miner.power) if miner.power else "0.0" }}</div>
+                    <div class="miner-stat-label">W</div>
+                </div>
+            </div>
+
+            <!-- Mini Chart -->
+            <div class="miner-chart" id="chart-{{ miner.ip|replace('.', '-') }}"></div>
+
+            <!-- Additional Stats -->
+            <div class="miner-details-preview">
+                <div class="detail-item">
+                    <span class="detail-label">Frequency:</span>
+                    <span class="detail-value frequency-value">{{ miner.frequency or "0" }} MHz</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Voltage:</span>
+                    <span class="detail-value voltage-value">{{ miner.coreVoltage or "0" }} mV</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Fan RPM:</span>
+                    <span class="detail-value">{{ miner.fanrpm or "–" }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">Uptime:</span>
+                    <span class="detail-value">{{ (miner.uptimeSeconds // 3600) if miner.uptimeSeconds else 0 }}h</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Miner Footer -->
+        <div class="miner-footer">
+            <div class="last-update">
+                <i data-lucide="clock"></i>
+                <span class="last-update">{{ moment().format('HH:mm:ss') if moment else 'Now' }}</span>
+            </div>
+            <div class="miner-actions">
+                <button class="btn btn-sm btn-secondary" onclick="viewMinerDetails('{{ miner.ip }}')" title="View Details">
+                    <i data-lucide="eye"></i>
+                </button>
+                <button class="btn btn-sm btn-primary" onclick="controlMiner('{{ miner.ip }}')" title="Control">
+                    <i data-lucide="settings"></i>
+                </button>
+                <button class="btn btn-sm btn-warning" onclick="benchmarkMiner('{{ miner.ip }}')" title="Benchmark">
+                    <i data-lucide="play"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Expandable Details (Hidden by default) -->
+        <div class="miner-details" style="display: none;">
+            <div class="miner-controls">
+                <div class="control-group">
+                    <div class="control-title">Frequency Control</div>
+                    <div class="slider-container">
+                        <div class="slider-label">
+                            <span>Frequency</span>
+                            <span class="slider-value" id="freq-{{ miner.ip|replace('.', '-') }}">{{ miner.frequency or 800 }} MHz</span>
+                        </div>
+                        <input type="range" class="slider" min="400" max="1200" step="25" 
+                               value="{{ miner.frequency or 800 }}" 
+                               onchange="updateFrequency('{{ miner.ip }}', this.value)">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <div class="control-title">Voltage Control</div>
+                    <div class="slider-container">
+                        <div class="slider-label">
+                            <span>Core Voltage</span>
+                            <span class="slider-value" id="volt-{{ miner.ip|replace('.', '-') }}">{{ miner.coreVoltage or 1200 }} mV</span>
+                        </div>
+                        <input type="range" class="slider" min="800" max="1500" step="25" 
+                               value="{{ miner.coreVoltage or 1200 }}"
+                               onchange="updateVoltage('{{ miner.ip }}', this.value)">
+                    </div>
+                </div>
+            </div>
+
+            <div class="detail-chart-container">
+                <div class="chart-title">24-Hour History</div>
+                <div class="detail-chart" id="detail-chart-{{ miner.ip|replace('.', '-') }}"></div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+
+    <!-- Add Miner Card (if applicable) -->
+    <div class="miner-card add-miner-card" onclick="showAddMinerDialog()">
+        <div class="add-miner-content">
+            <div class="add-miner-icon">
+                <i data-lucide="plus"></i>
+            </div>
+            <div class="add-miner-text">Add New Miner</div>
+            <div class="add-miner-subtitle">Configure additional mining device</div>
+        </div>
+    </div>
+</section>
+
+<!-- Performance Summary -->
+<section class="performance-summary grid-span-full">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Performance Summary</h3>
+            <div class="performance-timeframe">
+                <select class="form-select" id="summary-timeframe">
+                    <option value="1h">Last Hour</option>
+                    <option value="6h">Last 6 Hours</option>
+                    <option value="24h" selected>Last 24 Hours</option>
+                    <option value="7d">Last 7 Days</option>
+                </select>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="summary-stats">
+                <div class="summary-stat">
+                    <div class="summary-stat-icon">
+                        <i data-lucide="trending-up"></i>
+                    </div>
+                    <div class="summary-stat-content">
+                        <div class="summary-stat-value">98.2%</div>
+                        <div class="summary-stat-label">Uptime</div>
+                    </div>
+                </div>
+
+                <div class="summary-stat">
+                    <div class="summary-stat-icon">
+                        <i data-lucide="target"></i>
+                    </div>
+                    <div class="summary-stat-content">
+                        <div class="summary-stat-value">2,847</div>
+                        <div class="summary-stat-label">Shares Accepted</div>
+                    </div>
+                </div>
+
+                <div class="summary-stat">
+                    <div class="summary-stat-icon">
+                        <i data-lucide="x-circle"></i>
+                    </div>
+                    <div class="summary-stat-content">
+                        <div class="summary-stat-value">12</div>
+                        <div class="summary-stat-label">Shares Rejected</div>
+                    </div>
+                </div>
+
+                <div class="summary-stat">
+                    <div class="summary-stat-icon">
+                        <i data-lucide="dollar-sign"></i>
+                    </div>
+                    <div class="summary-stat-content">
+                        <div class="summary-stat-value">$12.47</div>
+                        <div class="summary-stat-label">Est. Revenue</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<!-- Chart.js for modern charts -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+
+<script>
+// Dashboard-specific JavaScript
+document.addEventListener('DOMContentLoaded', function() {
+    initializeCharts();
+    startRealTimeUpdates();
+    setupChartControls();
+});
+
+/**
+ * Initialize all dashboard charts
+ */
+function initializeCharts() {
+    // Fleet overview chart
+    initFleetOverviewChart();
+    
+    // Individual miner charts
+    {% for miner in miners %}
+    initMinerChart('{{ miner.ip }}');
+    {% endfor %}
+}
+
+/**
+ * Initialize fleet overview chart
+ */
+function initFleetOverviewChart() {
+    const ctx = document.getElementById('fleet-overview-chart');
+    if (!ctx) return;
+
+    const chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [], // Will be populated with real data
+            datasets: [{
+                label: 'Total Hashrate',
+                data: [],
+                borderColor: 'rgba(0, 212, 255, 1)',
+                backgroundColor: 'rgba(0, 212, 255, 0.1)',
+                fill: true,
+                tension: 0.4,
+                pointRadius: 0,
+                pointHoverRadius: 6,
+                borderWidth: 2
+            }, {
+                label: 'Average Temperature',
+                data: [],
+                borderColor: 'rgba(255, 107, 53, 1)',
+                backgroundColor: 'rgba(255, 107, 53, 0.1)',
+                fill: false,
+                tension: 0.4,
+                pointRadius: 0,
+                pointHoverRadius: 6,
+                borderWidth: 2,
+                yAxisID: 'y1'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: {
+                        color: 'rgba(255, 255, 255, 0.8)',
+                        usePointStyle: true
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    type: 'time',
+                    time: {
+                        unit: 'minute'
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    },
+                    ticks: {
+                        color: 'rgba(255, 255, 255, 0.6)'
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    },
+                    ticks: {
+                        color: 'rgba(255, 255, 255, 0.6)',
+                        callback: function(value) {
+                            return value + ' GH/s';
+                        }
+                    }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    grid: {
+                        drawOnChartArea: false,
+                    },
+                    ticks: {
+                        color: 'rgba(255, 255, 255, 0.6)',
+                        callback: function(value) {
+                            return value + '°C';
+                        }
+                    }
+                }
+            },
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            }
+        }
+    });
+    
+    // Store chart instance for updates
+    window.fleetChart = chart;
+}
+
+/**
+ * Initialize individual miner chart
+ */
+function initMinerChart(ip) {
+    const chartId = 'chart-' + ip.replace(/\./g, '-');
+    const ctx = document.getElementById(chartId);
+    if (!ctx) return;
+
+    const chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Hashrate',
+                data: [],
+                borderColor: 'rgba(0, 212, 255, 1)',
+                backgroundColor: 'rgba(0, 212, 255, 0.1)',
+                fill: true,
+                tension: 0.4,
+                pointRadius: 0,
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                x: {
+                    display: false
+                },
+                y: {
+                    display: false,
+                    beginAtZero: true
+                }
+            },
+            elements: {
+                point: {
+                    radius: 0
+                }
+            }
+        }
+    });
+    
+    // Store chart instance
+    if (!window.minerCharts) window.minerCharts = {};
+    window.minerCharts[ip] = chart;
+}
+
+/**
+ * Start real-time updates
+ */
+function startRealTimeUpdates() {
+    // Update every 5 seconds
+    setInterval(updateDashboardData, 5000);
+    
+    // Initial update
+    updateDashboardData();
+}
+
+/**
+ * Update dashboard data
+ */
+async function updateDashboardData() {
+    try {
+        const response = await fetch('/api/v1/miners/status');
+        const data = await response.json();
+        
+        if (data.success && data.data) {
+            data.data.forEach(miner => {
+                updateMinerDisplay(miner);
+                updateMinerChart(miner);
+            });
+            
+            updateFleetOverviewChart(data.data);
+            updateFleetStats(data.data);
+        }
+    } catch (error) {
+        console.error('Failed to update dashboard data:', error);
+    }
+}
+
+/**
+ * Update miner display
+ */
+function updateMinerDisplay(miner) {
+    if (window.DashboardCore && window.DashboardCore.updateMinerData) {
+        window.DashboardCore.updateMinerData(miner);
+    }
+}
+
+/**
+ * Update miner chart with new data point
+ */
+function updateMinerChart(miner) {
+    const chart = window.minerCharts?.[miner.ip];
+    if (!chart) return;
+    
+    const now = new Date();
+    chart.data.labels.push(now);
+    chart.data.datasets[0].data.push(miner.hashRate || 0);
+    
+    // Keep only last 20 data points
+    if (chart.data.labels.length > 20) {
+        chart.data.labels.shift();
+        chart.data.datasets[0].data.shift();
+    }
+    
+    chart.update('none'); // No animation for real-time updates
+}
+
+/**
+ * Update fleet overview chart
+ */
+function updateFleetOverviewChart(miners) {
+    const chart = window.fleetChart;
+    if (!chart) return;
+    
+    const totalHashrate = miners.reduce((sum, miner) => sum + (miner.hashRate || 0), 0);
+    const avgTemp = miners.reduce((sum, miner) => sum + (miner.temp || 0), 0) / miners.length;
+    const now = new Date();
+    
+    chart.data.labels.push(now);
+    chart.data.datasets[0].data.push(totalHashrate);
+    chart.data.datasets[1].data.push(avgTemp);
+    
+    // Keep only last 60 data points (5 minutes at 5-second intervals)
+    if (chart.data.labels.length > 60) {
+        chart.data.labels.shift();
+        chart.data.datasets[0].data.shift();
+        chart.data.datasets[1].data.shift();
+    }
+    
+    chart.update('none');
+}
+
+/**
+ * Update fleet statistics
+ */
+function updateFleetStats(miners) {
+    const totalHashrate = miners.reduce((sum, miner) => sum + (miner.hashRate || 0), 0);
+    const avgTemp = miners.reduce((sum, miner) => sum + (miner.temp || 0), 0) / miners.length;
+    const totalEfficiency = miners.reduce((sum, miner) => {
+        if (miner.power && miner.power > 0) {
+            return sum + (miner.hashRate / miner.power);
+        }
+        return sum;
+    }, 0);
+    
+    // Update DOM elements
+    const totalHashrateEl = document.getElementById('total-hashrate');
+    const avgTempEl = document.getElementById('avg-temperature');
+    const totalEfficiencyEl = document.getElementById('total-efficiency');
+    
+    if (totalHashrateEl) totalHashrateEl.textContent = totalHashrate.toFixed(2);
+    if (avgTempEl) avgTempEl.textContent = avgTemp.toFixed(1) + '°C';
+    if (totalEfficiencyEl) totalEfficiencyEl.textContent = totalEfficiency.toFixed(2);
+}
+
+/**
+ * Setup chart controls
+ */
+function setupChartControls() {
+    document.querySelectorAll('.chart-control-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const timerange = this.dataset.timerange;
+            const container = this.closest('.chart-container');
+            
+            // Update active state
+            container.querySelectorAll('.chart-control-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Update chart timerange
+            updateChartTimerange(timerange);
+        });
+    });
+}
+
+/**
+ * Update chart timerange
+ */
+function updateChartTimerange(timerange) {
+    // This would fetch historical data for the selected timerange
+    console.log('Updating chart timerange to:', timerange);
+    
+    if (window.DashboardCore) {
+        window.DashboardCore.showAlert(`Timerange updated to ${timerange}`, 'info', 2000);
+    }
+}
+
+/**
+ * Utility functions for miner actions
+ */
+function viewMinerDetails(ip) {
+    window.location.href = `/miner/${ip}`;
+}
+
+function controlMiner(ip) {
+    window.location.href = `/control?miner=${ip}`;
+}
+
+function benchmarkMiner(ip) {
+    if (confirm(`Start benchmark for miner ${ip}?`)) {
+        fetch('/api/v1/benchmark/start', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                ip: ip,
+                frequency: 800,
+                core_voltage: 1200,
+                duration: 600
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                if (window.DashboardCore) {
+                    window.DashboardCore.showAlert('Benchmark started successfully', 'success');
+                }
+            } else {
+                if (window.DashboardCore) {
+                    window.DashboardCore.showAlert('Failed to start benchmark', 'error');
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Benchmark error:', error);
+            if (window.DashboardCore) {
+                window.DashboardCore.showAlert('Benchmark request failed', 'error');
+            }
+        });
+    }
+}
+
+function updateFrequency(ip, value) {
+    const display = document.getElementById(`freq-${ip.replace(/\./g, '-')}`);
+    if (display) {
+        display.textContent = value + ' MHz';
+    }
+    
+    // Debounced update to prevent too many API calls
+    clearTimeout(window.frequencyUpdateTimeout);
+    window.frequencyUpdateTimeout = setTimeout(() => {
+        updateMinerSetting(ip, 'frequency', parseInt(value));
+    }, 1000);
+}
+
+function updateVoltage(ip, value) {
+    const display = document.getElementById(`volt-${ip.replace(/\./g, '-')}`);
+    if (display) {
+        display.textContent = value + ' mV';
+    }
+    
+    // Debounced update to prevent too many API calls
+    clearTimeout(window.voltageUpdateTimeout);
+    window.voltageUpdateTimeout = setTimeout(() => {
+        updateMinerSetting(ip, 'coreVoltage', parseInt(value));
+    }, 1000);
+}
+
+function updateMinerSetting(ip, setting, value) {
+    const payload = { [setting]: value };
+    
+    fetch(`/api/v1/miner/${ip}/settings`, {
+        method: 'PATCH',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            if (window.DashboardCore) {
+                window.DashboardCore.showAlert(`${setting} updated to ${value}`, 'success', 2000);
+            }
+        } else {
+            if (window.DashboardCore) {
+                window.DashboardCore.showAlert(`Failed to update ${setting}`, 'error');
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Setting update error:', error);
+        if (window.DashboardCore) {
+            window.DashboardCore.showAlert('Setting update failed', 'error');
+        }
+    });
+}
+
+function refreshAllData() {
+    if (window.DashboardCore && window.DashboardCore.refreshData) {
+        window.DashboardCore.refreshData();
+        window.DashboardCore.showAlert('Refreshing all data...', 'info', 2000);
+    }
+}
+
+function showAddMinerDialog() {
+    if (window.DashboardCore) {
+        window.DashboardCore.showAlert('Add miner feature coming soon!', 'info');
+    }
+}
+</script>
+
+<style>
+/* Additional dashboard styles */
+.miner-details-preview {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-md);
+    padding-top: var(--spacing-md);
+    border-top: 1px solid var(--color-border);
+    font-size: 0.8rem;
+}
+
+.detail-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.detail-label {
+    color: var(--color-text-secondary);
+}
+
+.detail-value {
+    color: var(--color-text-primary);
+    font-weight: var(--font-weight-medium);
+    font-family: var(--font-mono);
+}
+
+.add-miner-card {
+    border: 2px dashed var(--color-border);
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+    cursor: pointer;
+    transition: all var(--transition-normal);
+}
+
+.add-miner-card:hover {
+    border-color: var(--color-accent-primary);
+    background: rgba(0, 212, 255, 0.05);
+}
+
+.add-miner-content {
+    text-align: center;
+    color: var(--color-text-secondary);
+}
+
+.add-miner-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--color-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto var(--spacing-md);
+    transition: all var(--transition-fast);
+}
+
+.add-miner-card:hover .add-miner-icon {
+    background: var(--color-accent-primary);
+    color: white;
+}
+
+.add-miner-text {
+    font-weight: var(--font-weight-semibold);
+    margin-bottom: var(--spacing-xs);
+}
+
+.add-miner-subtitle {
+    font-size: 0.8rem;
+    opacity: 0.7;
+}
+
+.performance-summary .summary-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--spacing-lg);
+}
+
+.summary-stat {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: var(--border-radius-md);
+    border: 1px solid var(--color-border);
+}
+
+.summary-stat-icon {
+    width: 48px;
+    height: 48px;
+    background: var(--gradient-primary);
+    border-radius: var(--border-radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--glow-primary);
+}
+
+.summary-stat-content {
+    flex: 1;
+}
+
+.summary-stat-value {
+    font-size: 1.5rem;
+    font-weight: var(--font-weight-bold);
+    color: var(--color-text-primary);
+    margin-bottom: var(--spacing-xs);
+}
+
+.summary-stat-label {
+    color: var(--color-text-secondary);
+    font-size: 0.9rem;
+}
+
+.performance-timeframe {
+    min-width: 150px;
+}
+
+@media (max-width: 767px) {
+    .miner-details-preview {
+        grid-template-columns: 1fr;
+    }
+    
+    .performance-summary .summary-stats {
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--spacing-md);
+    }
+    
+    .summary-stat {
+        flex-direction: column;
+        text-align: center;
+        gap: var(--spacing-sm);
+    }
+}
+</style>
+{% endblock %}

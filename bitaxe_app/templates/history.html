@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="mb-4">Verlauf (letzte 48 Stunden)</h2>
+
+<form method="get" class="mb-4">
+    <label for="hours" class="form-label">Zeitraum:</label>
+    <select name="hours" id="hours" onchange="this.form.submit()" class="form-select">
+        <option value="6" {% if selected_hours == 6 %}selected{% endif %}>Letzte 6 Stunden</option>
+        <option value="24" {% if selected_hours == 24 %}selected{% endif %}>Letzte 24 Stunden</option>
+        <option value="48" {% if selected_hours == 48 %}selected{% endif %}>Letzte 48 Stunden</option>
+    </select>
+</form>
+
+{% for miner in miners %}
+  <div class="card mb-4">
+    <div class="card-header">{{ miner }}</div>
+    <div class="card-body">
+      <div id="plot_{{ miner|replace('.', '_') }}"></div>
+    </div>
+  </div>
+{% endfor %}
+
+<!-- Plotly -->
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script>
+  const plotData = {{ plot_data | tojson | safe }};
+  window.onload = function () {
+    for (const ip in plotData) {
+      const containerId = 'plot_' + ip.replaceAll('.', '_');
+      const container = document.getElementById(containerId);
+      const data = plotData[ip];
+      Plotly.newPlot(container, data.traces, {
+        template: "plotly_white",
+        xaxis: { title: 'Zeit' },
+        yaxis: { title: 'Wert' },
+        margin: { t: 40 }
+      });
+    }
+  };
+</script>
+{% endblock %}

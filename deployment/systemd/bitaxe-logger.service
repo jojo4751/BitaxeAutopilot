@@ -1,0 +1,20 @@
+[Unit]
+Description=BitAxe Data Logger Service V2.0.0
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=bitaxe
+Group=bitaxe
+WorkingDirectory=/opt/bitaxe-web
+Environment=PATH=/opt/bitaxe-web/venv/bin
+Environment=DATABASE_PATH=/opt/bitaxe-web/data/bitaxe_data.db
+ExecStart=/opt/bitaxe-web/venv/bin/python scripts/data_logger.py
+Restart=always
+RestartSec=15
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

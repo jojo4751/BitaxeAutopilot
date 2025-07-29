@@ -1,0 +1,1368 @@
+{% extends "base.html" %}
+
+{% block title %}Control Center - BitAxe{% endblock %}
+{% block page_title %}Control Center{% endblock %}
+{% block page_subtitle %}Manual control and configuration{% endblock %}
+
+{% block page_actions %}
+<div class="page-actions">
+    <button class="btn btn-secondary" onclick="resetAllToDefaults()">
+        <i data-lucide="rotate-ccw"></i>
+        Reset All
+    </button>
+    <button class="btn btn-warning" onclick="emergencyStop()">
+        <i data-lucide="alert-triangle"></i>
+        Emergency Stop
+    </button>
+    <button class="btn btn-primary" onclick="applyBulkSettings()">
+        <i data-lucide="check"></i>
+        Apply All
+    </button>
+</div>
+{% endblock %}
+
+{% block head %}
+<style>
+    /* Control-specific enhancements */
+    .control-section {
+        margin-bottom: var(--spacing-2xl);
+    }
+    
+    .control-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: var(--spacing-lg);
+    }
+    
+    .advanced-slider {
+        position: relative;
+    }
+    
+    .slider-track {
+        position: relative;
+        height: 8px;
+        background: var(--color-border);
+        border-radius: 4px;
+        margin: var(--spacing-md) 0;
+    }
+    
+    .slider-fill {
+        position: absolute;
+        height: 100%;
+        background: var(--gradient-primary);
+        border-radius: 4px;
+        transition: width var(--transition-fast);
+    }
+    
+    .slider-thumb {
+        position: absolute;
+        width: 24px;
+        height: 24px;
+        background: var(--gradient-primary);
+        border-radius: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        cursor: pointer;
+        box-shadow: var(--glow-primary);
+        transition: all var(--transition-fast);
+    }
+    
+    .slider-thumb:hover {
+        transform: translate(-50%, -50%) scale(1.2);
+    }
+    
+    .preset-buttons {
+        display: flex;
+        gap: var(--spacing-sm);
+        margin-top: var(--spacing-md);
+        flex-wrap: wrap;
+    }
+    
+    .preset-btn {
+        flex: 1;
+        min-width: 80px;
+        padding: var(--spacing-sm);
+        font-size: 0.8rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Quick Actions Section -->
+<section class="control-section">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Quick Actions</h3>
+            <div class="quick-action-toggle">
+                <label class="setting-toggle">
+                    <input type="checkbox" id="auto-apply" checked>
+                    <label for="auto-apply" class="toggle-slider"></label>
+                </label>
+                <span>Auto-apply changes</span>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="quick-actions-grid">
+                <button class="btn btn-success" onclick="startAllMiners()">
+                    <i data-lucide="play"></i>
+                    Start All
+                </button>
+                <button class="btn btn-warning" onclick="restartAllMiners()">
+                    <i data-lucide="refresh-cw"></i>
+                    Restart All
+                </button>
+                <button class="btn btn-danger" onclick="stopAllMiners()">
+                    <i data-lucide="square"></i>
+                    Stop All
+                </button>
+                <button class="btn btn-secondary" onclick="syncSettings()">
+                    <i data-lucide="copy"></i>
+                    Sync Settings
+                </button>
+                <button class="btn btn-primary" onclick="optimizeAll()">
+                    <i data-lucide="zap"></i>
+                    Auto Optimize
+                </button>
+                <button class="btn btn-secondary" onclick="exportSettings()">
+                    <i data-lucide="download"></i>
+                    Export Config
+                </button>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Individual Miner Control -->
+<section class="control-section">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Individual Miner Control</h3>
+            <div class="bulk-select-controls">
+                <button class="btn btn-sm btn-secondary" onclick="selectAllMiners()">Select All</button>
+                <button class="btn btn-sm btn-secondary" onclick="selectNone()">Select None</button>
+                <span class="selected-count" id="selected-count">0 selected</span>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="control-grid">
+                {% for miner in miners %}
+                <div class="miner-control-card" data-miner-ip="{{ miner.ip }}">
+                    <div class="miner-control-header">
+                        <div class="miner-select">
+                            <input type="checkbox" class="miner-checkbox" value="{{ miner.ip }}" 
+                                   onchange="updateSelectedCount()">
+                        </div>
+                        <div class="miner-info">
+                            <div class="miner-name">{{ miner.hostname or miner.ip }}</div>
+                            <div class="miner-status-indicator">
+                                <div class="status-dot {% if miner.temp >= 75 %}status-error{% elif miner.temp >= 70 %}status-warning{% elif miner.hashRate > 0 %}status-online{% else %}status-offline{% endif %}"></div>
+                                <span>{{ miner.ip }}</span>
+                            </div>
+                        </div>
+                        <div class="current-stats">
+                            <div class="stat-item">
+                                <span class="stat-value">{{ "%.1f"|format(miner.hashRate) if miner.hashRate else "0.0" }}</span>
+                                <span class="stat-label">GH/s</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-value">{{ "%.0f"|format(miner.temp) if miner.temp else "0" }}</span>
+                                <span class="stat-label">°C</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="miner-controls">
+                        <!-- Frequency Control -->
+                        <div class="control-group">
+                            <div class="control-title">
+                                <span>Frequency</span>
+                                <span class="control-value" id="freq-display-{{ miner.ip|replace('.', '-') }}">
+                                    {{ miner.frequency or 800 }} MHz
+                                </span>
+                            </div>
+                            <div class="advanced-slider">
+                                <input type="range" class="slider" 
+                                       min="400" max="1200" step="25" 
+                                       value="{{ miner.frequency or 800 }}"
+                                       data-miner="{{ miner.ip }}"
+                                       data-setting="frequency"
+                                       onchange="updateSliderSetting(this)">
+                                <div class="preset-buttons">
+                                    <button class="btn btn-sm preset-btn" onclick="setPreset('{{ miner.ip }}', 'frequency', 600)">ECO</button>
+                                    <button class="btn btn-sm preset-btn" onclick="setPreset('{{ miner.ip }}', 'frequency', 800)">BAL</button>
+                                    <button class="btn btn-sm preset-btn" onclick="setPreset('{{ miner.ip }}', 'frequency', 1000)">PERF</button>
+                                    <button class="btn btn-sm preset-btn" onclick="setPreset('{{ miner.ip }}', 'frequency', 1200)">MAX</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Voltage Control -->
+                        <div class="control-group">
+                            <div class="control-title">
+                                <span>Core Voltage</span>
+                                <span class="control-value" id="volt-display-{{ miner.ip|replace('.', '-') }}">
+                                    {{ miner.coreVoltage or 1200 }} mV
+                                </span>
+                            </div>
+                            <div class="advanced-slider">
+                                <input type="range" class="slider" 
+                                       min="800" max="1500" step="25" 
+                                       value="{{ miner.coreVoltage or 1200 }}"
+                                       data-miner="{{ miner.ip }}"
+                                       data-setting="coreVoltage"
+                                       onchange="updateSliderSetting(this)">
+                                <div class="preset-buttons">
+                                    <button class="btn btn-sm preset-btn" onclick="setPreset('{{ miner.ip }}', 'coreVoltage', 1000)">LOW</button>
+                                    <button class="btn btn-sm preset-btn" onclick="setPreset('{{ miner.ip }}', 'coreVoltage', 1200)">MID</button>
+                                    <button class="btn btn-sm preset-btn" onclick="setPreset('{{ miner.ip }}', 'coreVoltage', 1400)">HIGH</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Fan Control -->
+                        <div class="control-group">
+                            <div class="control-title">
+                                <span>Fan Control</span>
+                                <div class="fan-mode-toggle">
+                                    <label class="setting-toggle">
+                                        <input type="checkbox" class="fan-auto-toggle" 
+                                               data-miner="{{ miner.ip }}" checked
+                                               onchange="toggleFanMode(this)">
+                                        <label class="toggle-slider"></label>
+                                    </label>
+                                    <span id="fan-mode-{{ miner.ip|replace('.', '-') }}">Auto</span>
+                                </div>
+                            </div>
+                            <div class="fan-speed-control" style="display: none;" id="fan-manual-{{ miner.ip|replace('.', '-') }}">
+                                <input type="range" class="slider" 
+                                       min="0" max="100" step="5" value="50"
+                                       data-miner="{{ miner.ip }}"
+                                       data-setting="fanSpeed"
+                                       onchange="updateSliderSetting(this)">
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="miner-actions">
+                            <button class="btn btn-sm btn-success" onclick="applySettings('{{ miner.ip }}')" title="Apply Settings">
+                                <i data-lucide="check"></i>
+                            </button>
+                            <button class="btn btn-sm btn-warning" onclick="restartMiner('{{ miner.ip }}')" title="Restart">
+                                <i data-lucide="refresh-cw"></i>
+                            </button>
+                            <button class="btn btn-sm btn-primary" onclick="benchmarkMiner('{{ miner.ip }}')" title="Benchmark">
+                                <i data-lucide="play"></i>
+                            </button>
+                            <button class="btn btn-sm btn-secondary" onclick="resetMiner('{{ miner.ip }}')" title="Reset to Defaults">
+                                <i data-lucide="rotate-ccw"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Bulk Operations -->
+<section class="control-section">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Bulk Operations</h3>
+            <div class="bulk-apply-mode">
+                <select class="form-select" id="bulk-apply-mode">
+                    <option value="selected">Selected Miners</option>
+                    <option value="all">All Miners</option>
+                    <option value="online">Online Only</option>
+                    <option value="offline">Offline Only</option>
+                </select>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="bulk-controls">
+                <div class="bulk-setting">
+                    <label class="setting-label">Bulk Frequency Setting</label>
+                    <div class="bulk-slider-container">
+                        <input type="range" class="slider" id="bulk-frequency" 
+                               min="400" max="1200" step="25" value="800">
+                        <div class="bulk-value" id="bulk-freq-value">800 MHz</div>
+                    </div>
+                    <button class="btn btn-primary btn-sm" onclick="applyBulkFrequency()">Apply Frequency</button>
+                </div>
+
+                <div class="bulk-setting">
+                    <label class="setting-label">Bulk Voltage Setting</label>
+                    <div class="bulk-slider-container">
+                        <input type="range" class="slider" id="bulk-voltage" 
+                               min="800" max="1500" step="25" value="1200">
+                        <div class="bulk-value" id="bulk-volt-value">1200 mV</div>
+                    </div>
+                    <button class="btn btn-primary btn-sm" onclick="applyBulkVoltage()">Apply Voltage</button>
+                </div>
+
+                <div class="bulk-setting">
+                    <label class="setting-label">Profile Application</label>
+                    <div class="profile-buttons">
+                        <button class="btn btn-success" onclick="applyProfile('eco')">
+                            <i data-lucide="leaf"></i>
+                            ECO Profile
+                        </button>
+                        <button class="btn btn-primary" onclick="applyProfile('balanced')">
+                            <i data-lucide="balance"></i>
+                            Balanced Profile
+                        </button>
+                        <button class="btn btn-warning" onclick="applyProfile('performance')">
+                            <i data-lucide="zap"></i>
+                            Performance Profile
+                        </button>
+                        <button class="btn btn-danger" onclick="applyProfile('maximum')">
+                            <i data-lucide="trending-up"></i>
+                            Maximum Profile
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Advanced Settings -->
+<section class="control-section">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Advanced Settings</h3>
+            <div class="settings-actions">
+                <button class="btn btn-sm btn-secondary" onclick="loadSettings()">
+                    <i data-lucide="upload"></i>
+                    Import
+                </button>
+                <button class="btn btn-sm btn-secondary" onclick="saveSettings()">
+                    <i data-lucide="download"></i>
+                    Export
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="advanced-settings-grid">
+                <div class="setting-group">
+                    <label class="setting-label">Temperature Limits</label>
+                    <div class="temp-limits">
+                        <div class="temp-setting">
+                            <span>Warning Threshold</span>
+                            <input type="number" class="form-input" id="temp-warning" 
+                                   value="{{ config.temp_limit or 70 }}" min="50" max="90">
+                            <span>°C</span>
+                        </div>
+                        <div class="temp-setting">
+                            <span>Critical Threshold</span>
+                            <input type="number" class="form-input" id="temp-critical" 
+                                   value="{{ config.temp_overheat or 80 }}" min="60" max="100">
+                            <span>°C</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="setting-group">
+                    <label class="setting-label">Auto-tuning Settings</label>
+                    <div class="auto-tuning-controls">
+                        <label class="setting-toggle">
+                            <input type="checkbox" id="auto-tuning-enabled">
+                            <label class="toggle-slider"></label>
+                        </label>
+                        <span>Enable Auto-tuning</span>
+                        <div class="tuning-interval">
+                            <span>Interval:</span>
+                            <select class="form-select" id="tuning-interval">
+                                <option value="3600">1 Hour</option>
+                                <option value="21600">6 Hours</option>
+                                <option value="86400" selected>24 Hours</option>
+                                <option value="604800">7 Days</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="setting-group">
+                    <label class="setting-label">Safety Features</label>
+                    <div class="safety-controls">
+                        <label class="form-check">
+                            <input type="checkbox" class="form-check-input" id="auto-shutdown" checked>
+                            <span class="form-check-label">Auto-shutdown on overheat</span>
+                        </label>
+                        <label class="form-check">
+                            <input type="checkbox" class="form-check-input" id="power-limit" checked>
+                            <span class="form-check-label">Power consumption limits</span>
+                        </label>
+                        <label class="form-check">
+                            <input type="checkbox" class="form-check-input" id="efficiency-monitoring">
+                            <span class="form-check-label">Efficiency monitoring</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="setting-group">
+                    <label class="setting-label">Notification Settings</label>
+                    <div class="notification-controls">
+                        <label class="form-check">
+                            <input type="checkbox" class="form-check-input" id="email-alerts">
+                            <span class="form-check-label">Email alerts</span>
+                        </label>
+                        <label class="form-check">
+                            <input type="checkbox" class="form-check-input" id="web-notifications" checked>
+                            <span class="form-check-label">Web notifications</span>
+                        </label>
+                        <label class="form-check">
+                            <input type="checkbox" class="form-check-input" id="sound-alerts">
+                            <span class="form-check-label">Sound alerts</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="advanced-actions">
+                <button class="btn btn-success" onclick="saveAdvancedSettings()">
+                    <i data-lucide="save"></i>
+                    Save Advanced Settings
+                </button>
+                <button class="btn btn-secondary" onclick="resetAdvancedSettings()">
+                    <i data-lucide="refresh-ccw"></i>
+                    Reset to Defaults
+                </button>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Benchmark Controls -->
+<section class="control-section">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Benchmark Controls</h3>
+        </div>
+        <div class="card-body">
+            <div class="benchmark-controls">
+                <div class="benchmark-config">
+                    <div class="config-group">
+                        <label class="setting-label">Benchmark Type</label>
+                        <select class="form-select" id="benchmark-type">
+                            <option value="quick">Quick Test (5 min)</option>
+                            <option value="standard" selected>Standard Test (10 min)</option>
+                            <option value="extended">Extended Test (30 min)</option>
+                            <option value="custom">Custom Duration</option>
+                        </select>
+                    </div>
+
+                    <div class="config-group" id="custom-duration" style="display: none;">
+                        <label class="setting-label">Duration (minutes)</label>
+                        <input type="number" class="form-input" id="benchmark-duration" 
+                               value="10" min="1" max="120">
+                    </div>
+
+                    <div class="config-group">
+                        <label class="setting-label">Test Settings</label>
+                        <div class="test-settings">
+                            <div class="test-setting">
+                                <span>Frequency:</span>
+                                <input type="number" class="form-input" id="test-frequency" 
+                                       value="800" min="400" max="1200" step="25">
+                                <span>MHz</span>
+                            </div>
+                            <div class="test-setting">
+                                <span>Voltage:</span>
+                                <input type="number" class="form-input" id="test-voltage" 
+                                       value="1200" min="800" max="1500" step="25">
+                                <span>mV</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="benchmark-actions">
+                    <button class="btn btn-warning btn-lg" onclick="startBenchmarkAll()">
+                        <i data-lucide="play"></i>
+                        Start Benchmark (All)
+                    </button>
+                    <button class="btn btn-primary btn-lg" onclick="startBenchmarkSelected()">
+                        <i data-lucide="play-circle"></i>
+                        Start Benchmark (Selected)
+                    </button>
+                    <button class="btn btn-danger" onclick="stopAllBenchmarks()">
+                        <i data-lucide="square"></i>
+                        Stop All Benchmarks
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Control panel JavaScript
+let selectedMiners = new Set();
+let pendingChanges = new Map();
+let autoApplyEnabled = true;
+
+document.addEventListener('DOMContentLoaded', function() {
+    initializeControls();
+    setupEventListeners();
+    updateSelectedCount();
+});
+
+function initializeControls() {
+    // Initialize bulk sliders
+    const bulkFreqSlider = document.getElementById('bulk-frequency');
+    const bulkVoltSlider = document.getElementById('bulk-voltage');
+    
+    if (bulkFreqSlider) {
+        bulkFreqSlider.addEventListener('input', function() {
+            document.getElementById('bulk-freq-value').textContent = this.value + ' MHz';
+        });
+    }
+    
+    if (bulkVoltSlider) {
+        bulkVoltSlider.addEventListener('input', function() {
+            document.getElementById('bulk-volt-value').textContent = this.value + ' mV';
+        });
+    }
+    
+    // Initialize benchmark type selector
+    const benchmarkType = document.getElementById('benchmark-type');
+    if (benchmarkType) {
+        benchmarkType.addEventListener('change', function() {
+            const customDuration = document.getElementById('custom-duration');
+            customDuration.style.display = this.value === 'custom' ? 'block' : 'none';
+        });
+    }
+}
+
+function setupEventListeners() {
+    // Auto-apply toggle
+    const autoApplyToggle = document.getElementById('auto-apply');
+    if (autoApplyToggle) {
+        autoApplyToggle.addEventListener('change', function() {
+            autoApplyEnabled = this.checked;
+            showNotification(autoApplyEnabled ? 'Auto-apply enabled' : 'Auto-apply disabled', 'info');
+        });
+    }
+}
+
+function updateSliderSetting(slider) {
+    const miner = slider.dataset.miner;
+    const setting = slider.dataset.setting;
+    const value = slider.value;
+    
+    // Update display
+    const displayId = setting === 'frequency' ? 
+        `freq-display-${miner.replace(/\./g, '-')}` : 
+        `volt-display-${miner.replace(/\./g, '-')}`;
+    
+    const display = document.getElementById(displayId);
+    if (display) {
+        const unit = setting === 'frequency' ? ' MHz' : ' mV';
+        display.textContent = value + unit;
+    }
+    
+    // Store pending change
+    if (!pendingChanges.has(miner)) {
+        pendingChanges.set(miner, {});
+    }
+    pendingChanges.get(miner)[setting] = parseInt(value);
+    
+    // Auto-apply if enabled
+    if (autoApplyEnabled) {
+        clearTimeout(window.autoApplyTimeout);
+        window.autoApplyTimeout = setTimeout(() => {
+            applySettings(miner);
+        }, 1000);
+    }
+    
+    // Add visual feedback
+    slider.parentElement.classList.add('changed');
+}
+
+function setPreset(miner, setting, value) {
+    const sliderId = `input[data-miner="${miner}"][data-setting="${setting}"]`;
+    const slider = document.querySelector(sliderId);
+    
+    if (slider) {
+        slider.value = value;
+        updateSliderSetting(slider);
+    }
+}
+
+function toggleFanMode(toggle) {
+    const miner = toggle.dataset.miner;
+    const isAuto = toggle.checked;
+    const fanModeDisplay = document.getElementById(`fan-mode-${miner.replace(/\./g, '-')}`);
+    const manualControl = document.getElementById(`fan-manual-${miner.replace(/\./g, '-')}`);
+    
+    if (fanModeDisplay) {
+        fanModeDisplay.textContent = isAuto ? 'Auto' : 'Manual';
+    }
+    
+    if (manualControl) {
+        manualControl.style.display = isAuto ? 'none' : 'block';
+    }
+    
+    // Store setting
+    if (!pendingChanges.has(miner)) {
+        pendingChanges.set(miner, {});
+    }
+    pendingChanges.get(miner).autoFanSpeed = isAuto;
+    
+    if (autoApplyEnabled) {
+        applySettings(miner);
+    }
+}
+
+function applySettings(miner) {
+    const changes = pendingChanges.get(miner);
+    if (!changes || Object.keys(changes).length === 0) {
+        return;
+    }
+    
+    fetch(`/api/v1/miner/${miner}/settings`, {
+        method: 'PATCH',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(changes)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(`Settings applied to ${miner}`, 'success');
+            pendingChanges.delete(miner);
+            
+            // Remove visual feedback
+            const card = document.querySelector(`[data-miner-ip="${miner}"]`);
+            if (card) {
+                card.querySelectorAll('.changed').forEach(el => el.classList.remove('changed'));
+            }
+        } else {
+            showNotification(`Failed to apply settings to ${miner}`, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Settings error:', error);
+        showNotification('Settings update failed', 'error');
+    });
+}
+
+function restartMiner(miner) {
+    if (confirm(`Restart miner ${miner}?`)) {
+        fetch(`/api/v1/miner/${miner}/restart`, {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification(`Miner ${miner} restarting...`, 'info');
+            } else {
+                showNotification(`Failed to restart ${miner}`, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Restart error:', error);
+            showNotification('Restart request failed', 'error');
+        });
+    }
+}
+
+function benchmarkMiner(miner) {
+    const duration = getBenchmarkDuration();
+    const frequency = parseInt(document.getElementById('test-frequency')?.value || 800);
+    const voltage = parseInt(document.getElementById('test-voltage')?.value || 1200);
+    
+    if (confirm(`Start benchmark for ${miner}?`)) {
+        fetch('/api/v1/benchmark/start', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                ip: miner,
+                frequency: frequency,
+                core_voltage: voltage,
+                duration: duration * 60 // Convert to seconds
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification(`Benchmark started for ${miner}`, 'success');
+            } else {
+                showNotification(`Failed to start benchmark for ${miner}`, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Benchmark error:', error);
+            showNotification('Benchmark request failed', 'error');
+        });
+    }
+}
+
+function resetMiner(miner) {
+    if (confirm(`Reset ${miner} to default settings?`)) {
+        // Reset to default values
+        setPreset(miner, 'frequency', 800);
+        setPreset(miner, 'coreVoltage', 1200);
+        
+        // Reset fan to auto
+        const fanToggle = document.querySelector(`input[data-miner="${miner}"].fan-auto-toggle`);
+        if (fanToggle && !fanToggle.checked) {
+            fanToggle.click();
+        }
+        
+        showNotification(`${miner} reset to defaults`, 'success');
+    }
+}
+
+function updateSelectedCount() {
+    const checkboxes = document.querySelectorAll('.miner-checkbox:checked');
+    selectedMiners.clear();
+    checkboxes.forEach(cb => selectedMiners.add(cb.value));
+    
+    const countDisplay = document.getElementById('selected-count');
+    if (countDisplay) {
+        countDisplay.textContent = `${selectedMiners.size} selected`;
+    }
+}
+
+function selectAllMiners() {
+    document.querySelectorAll('.miner-checkbox').forEach(cb => {
+        cb.checked = true;
+    });
+    updateSelectedCount();
+}
+
+function selectNone() {
+    document.querySelectorAll('.miner-checkbox').forEach(cb => {
+        cb.checked = false;
+    });
+    updateSelectedCount();
+}
+
+function getTargetMiners() {
+    const mode = document.getElementById('bulk-apply-mode')?.value || 'selected';
+    const allMiners = Array.from(document.querySelectorAll('.miner-checkbox')).map(cb => cb.value);
+    
+    switch (mode) {
+        case 'all':
+            return allMiners;
+        case 'selected':
+            return Array.from(selectedMiners);
+        case 'online':
+            return allMiners.filter(ip => {
+                const card = document.querySelector(`[data-miner-ip="${ip}"]`);
+                return card && !card.classList.contains('status-offline');
+            });
+        case 'offline':
+            return allMiners.filter(ip => {
+                const card = document.querySelector(`[data-miner-ip="${ip}"]`);
+                return card && card.classList.contains('status-offline');
+            });
+        default:
+            return Array.from(selectedMiners);
+    }
+}
+
+function applyBulkFrequency() {
+    const frequency = parseInt(document.getElementById('bulk-frequency').value);
+    const miners = getTargetMiners();
+    
+    if (miners.length === 0) {
+        showNotification('No miners selected', 'warning');
+        return;
+    }
+    
+    if (confirm(`Apply frequency ${frequency} MHz to ${miners.length} miners?`)) {
+        miners.forEach(miner => {
+            setPreset(miner, 'frequency', frequency);
+            if (autoApplyEnabled) {
+                applySettings(miner);
+            }
+        });
+        showNotification(`Frequency applied to ${miners.length} miners`, 'success');
+    }
+}
+
+function applyBulkVoltage() {
+    const voltage = parseInt(document.getElementById('bulk-voltage').value);
+    const miners = getTargetMiners();
+    
+    if (miners.length === 0) {
+        showNotification('No miners selected', 'warning');
+        return;
+    }
+    
+    if (confirm(`Apply voltage ${voltage} mV to ${miners.length} miners?`)) {
+        miners.forEach(miner => {
+            setPreset(miner, 'coreVoltage', voltage);
+            if (autoApplyEnabled) {
+                applySettings(miner);
+            }
+        });
+        showNotification(`Voltage applied to ${miners.length} miners`, 'success');
+    }
+}
+
+function applyProfile(profileName) {
+    const profiles = {
+        eco: { frequency: 600, coreVoltage: 1000 },
+        balanced: { frequency: 800, coreVoltage: 1200 },
+        performance: { frequency: 1000, coreVoltage: 1350 },
+        maximum: { frequency: 1200, coreVoltage: 1500 }
+    };
+    
+    const profile = profiles[profileName];
+    if (!profile) return;
+    
+    const miners = getTargetMiners();
+    if (miners.length === 0) {
+        showNotification('No miners selected', 'warning');
+        return;
+    }
+    
+    if (confirm(`Apply ${profileName.toUpperCase()} profile to ${miners.length} miners?`)) {
+        miners.forEach(miner => {
+            setPreset(miner, 'frequency', profile.frequency);
+            setPreset(miner, 'coreVoltage', profile.coreVoltage);
+            if (autoApplyEnabled) {
+                applySettings(miner);
+            }
+        });
+        showNotification(`${profileName.toUpperCase()} profile applied to ${miners.length} miners`, 'success');
+    }
+}
+
+function getBenchmarkDuration() {
+    const type = document.getElementById('benchmark-type')?.value || 'standard';
+    const durations = {
+        quick: 5,
+        standard: 10,
+        extended: 30,
+        custom: parseInt(document.getElementById('benchmark-duration')?.value || 10)
+    };
+    return durations[type] || 10;
+}
+
+function startBenchmarkAll() {
+    const miners = Array.from(document.querySelectorAll('.miner-checkbox')).map(cb => cb.value);
+    startBenchmarkForMiners(miners);
+}
+
+function startBenchmarkSelected() {
+    if (selectedMiners.size === 0) {
+        showNotification('No miners selected', 'warning');
+        return;
+    }
+    startBenchmarkForMiners(Array.from(selectedMiners));
+}
+
+function startBenchmarkForMiners(miners) {
+    const duration = getBenchmarkDuration();
+    const frequency = parseInt(document.getElementById('test-frequency')?.value || 800);
+    const voltage = parseInt(document.getElementById('test-voltage')?.value || 1200);
+    
+    if (confirm(`Start benchmark for ${miners.length} miners?`)) {
+        fetch('/api/v1/benchmark/multi-start', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                ips: miners,
+                frequency: frequency,
+                core_voltage: voltage,
+                duration: duration * 60
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification(`Benchmark started for ${miners.length} miners`, 'success');
+            } else {
+                showNotification('Failed to start benchmarks', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Benchmark error:', error);
+            showNotification('Benchmark request failed', 'error');
+        });
+    }
+}
+
+function stopAllBenchmarks() {
+    if (confirm('Stop all running benchmarks?')) {
+        fetch('/api/v1/benchmark/stop-all', {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('All benchmarks stopped', 'success');
+            } else {
+                showNotification('Failed to stop benchmarks', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Stop benchmarks error:', error);
+            showNotification('Stop benchmarks request failed', 'error');
+        });
+    }
+}
+
+// Quick actions
+function startAllMiners() {
+    showNotification('Starting all miners...', 'info');
+    // Implementation would send start commands to all miners
+}
+
+function restartAllMiners() {
+    if (confirm('Restart all miners?')) {
+        const miners = Array.from(document.querySelectorAll('.miner-checkbox')).map(cb => cb.value);
+        Promise.all(miners.map(miner => 
+            fetch(`/api/v1/miner/${miner}/restart`, { method: 'POST' })
+        ))
+        .then(() => {
+            showNotification('All miners restarting...', 'success');
+        })
+        .catch(error => {
+            console.error('Restart all error:', error);
+            showNotification('Failed to restart all miners', 'error');
+        });
+    }
+}
+
+function stopAllMiners() {
+    if (confirm('Stop all miners?')) {
+        showNotification('Stopping all miners...', 'warning');
+        // Implementation would send stop commands to all miners
+    }
+}
+
+function syncSettings() {
+    showNotification('Settings sync feature coming soon!', 'info');
+}
+
+function optimizeAll() {
+    showNotification('Auto-optimization feature coming soon!', 'info');
+}
+
+function exportSettings() {
+    showNotification('Settings export feature coming soon!', 'info');
+}
+
+function resetAllToDefaults() {
+    if (confirm('Reset all miners to default settings?')) {
+        document.querySelectorAll('.miner-checkbox').forEach(cb => {
+            resetMiner(cb.value);
+        });
+    }
+}
+
+function emergencyStop() {
+    if (confirm('EMERGENCY STOP - This will immediately stop all miners. Continue?')) {
+        showNotification('EMERGENCY STOP ACTIVATED', 'error');
+        // Implementation would send emergency stop to all miners
+    }
+}
+
+function applyBulkSettings() {
+    const changes = Array.from(pendingChanges.entries());
+    if (changes.length === 0) {
+        showNotification('No pending changes to apply', 'info');
+        return;
+    }
+    
+    if (confirm(`Apply all pending changes to ${changes.length} miners?`)) {
+        changes.forEach(([miner]) => {
+            applySettings(miner);
+        });
+    }
+}
+
+function saveAdvancedSettings() {
+    // Collect all advanced settings
+    const settings = {
+        tempWarning: document.getElementById('temp-warning')?.value,
+        tempCritical: document.getElementById('temp-critical')?.value,
+        autoTuningEnabled: document.getElementById('auto-tuning-enabled')?.checked,
+        tuningInterval: document.getElementById('tuning-interval')?.value,
+        autoShutdown: document.getElementById('auto-shutdown')?.checked,
+        powerLimit: document.getElementById('power-limit')?.checked,
+        efficiencyMonitoring: document.getElementById('efficiency-monitoring')?.checked,
+        emailAlerts: document.getElementById('email-alerts')?.checked,
+        webNotifications: document.getElementById('web-notifications')?.checked,
+        soundAlerts: document.getElementById('sound-alerts')?.checked
+    };
+    
+    fetch('/api/v1/settings/advanced', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(settings)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('Advanced settings saved', 'success');
+        } else {
+            showNotification('Failed to save advanced settings', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Advanced settings error:', error);
+        showNotification('Failed to save advanced settings', 'error');
+    });
+}
+
+function resetAdvancedSettings() {
+    if (confirm('Reset all advanced settings to defaults?')) {
+        // Reset all form elements to defaults
+        document.getElementById('temp-warning').value = 70;
+        document.getElementById('temp-critical').value = 80;
+        document.getElementById('auto-tuning-enabled').checked = false;
+        document.getElementById('tuning-interval').value = 86400;
+        document.getElementById('auto-shutdown').checked = true;
+        document.getElementById('power-limit').checked = true;
+        document.getElementById('efficiency-monitoring').checked = false;
+        document.getElementById('email-alerts').checked = false;
+        document.getElementById('web-notifications').checked = true;
+        document.getElementById('sound-alerts').checked = false;
+        
+        showNotification('Advanced settings reset to defaults', 'success');
+    }
+}
+
+function showNotification(message, type = 'info') {
+    if (window.DashboardCore && window.DashboardCore.showAlert) {
+        window.DashboardCore.showAlert(message, type, 3000);
+    } else {
+        console.log(`${type.toUpperCase()}: ${message}`);
+    }
+}
+</script>
+
+<style>
+/* Additional control-specific styles */
+.quick-actions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--spacing-md);
+}
+
+.quick-action-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.miner-control-card {
+    background: var(--gradient-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-lg);
+    overflow: hidden;
+    transition: all var(--transition-normal);
+}
+
+.miner-control-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.miner-control-header {
+    padding: var(--spacing-md);
+    border-bottom: 1px solid var(--color-border);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.miner-select input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+}
+
+.miner-info {
+    flex: 1;
+}
+
+.miner-name {
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+    margin-bottom: var(--spacing-xs);
+}
+
+.miner-status-indicator {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    font-size: 0.8rem;
+    color: var(--color-text-secondary);
+    font-family: var(--font-mono);
+}
+
+.current-stats {
+    display: flex;
+    gap: var(--spacing-md);
+}
+
+.stat-item {
+    text-align: center;
+}
+
+.stat-value {
+    display: block;
+    font-weight: var(--font-weight-bold);
+    color: var(--color-text-primary);
+    font-family: var(--font-mono);
+}
+
+.stat-label {
+    font-size: 0.7rem;
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+}
+
+.miner-controls {
+    padding: var(--spacing-md);
+}
+
+.control-group {
+    margin-bottom: var(--spacing-lg);
+}
+
+.control-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-primary);
+}
+
+.control-value {
+    font-family: var(--font-mono);
+    color: var(--color-accent-primary);
+}
+
+.fan-mode-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    font-size: 0.8rem;
+}
+
+.miner-actions {
+    display: flex;
+    justify-content: space-between;
+    padding-top: var(--spacing-md);
+    border-top: 1px solid var(--color-border);
+}
+
+.bulk-select-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.selected-count {
+    color: var(--color-text-secondary);
+    font-size: 0.9rem;
+    font-weight: var(--font-weight-medium);
+}
+
+.bulk-controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--spacing-xl);
+}
+
+.bulk-setting {
+    background: rgba(255, 255, 255, 0.02);
+    padding: var(--spacing-lg);
+    border-radius: var(--border-radius-md);
+    border: 1px solid var(--color-border);
+}
+
+.bulk-slider-container {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    margin: var(--spacing-md) 0;
+}
+
+.bulk-value {
+    font-family: var(--font-mono);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-accent-primary);
+    min-width: 80px;
+}
+
+.profile-buttons {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-sm);
+}
+
+.advanced-settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: var(--spacing-xl);
+    margin-bottom: var(--spacing-xl);
+}
+
+.setting-group {
+    background: rgba(255, 255, 255, 0.02);
+    padding: var(--spacing-lg);
+    border-radius: var(--border-radius-md);
+    border: 1px solid var(--color-border);
+}
+
+.temp-limits {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.temp-setting {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.temp-setting input {
+    width: 80px;
+}
+
+.auto-tuning-controls {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.tuning-interval {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.safety-controls,
+.notification-controls {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.advanced-actions {
+    display: flex;
+    justify-content: center;
+    gap: var(--spacing-lg);
+}
+
+.benchmark-controls {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--spacing-xl);
+    align-items: start;
+}
+
+.benchmark-config {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-lg);
+}
+
+.config-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.test-settings {
+    display: flex;
+    gap: var(--spacing-lg);
+}
+
+.test-setting {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.test-setting input {
+    width: 100px;
+}
+
+.benchmark-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.settings-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+}
+
+/* Visual feedback for changed settings */
+.changed {
+    position: relative;
+}
+
+.changed::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    border: 2px solid var(--color-warning);
+    border-radius: inherit;
+    pointer-events: none;
+    animation: pulse 2s infinite;
+}
+
+@media (max-width: 767px) {
+    .quick-actions-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .current-stats {
+        flex-direction: column;
+        gap: var(--spacing-sm);
+    }
+    
+    .bulk-controls {
+        grid-template-columns: 1fr;
+    }
+    
+    .profile-buttons {
+        grid-template-columns: 1fr;
+    }
+    
+    .benchmark-controls {
+        grid-template-columns: 1fr;
+    }
+    
+    .benchmark-actions {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+    
+    .advanced-settings-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .test-settings {
+        flex-direction: column;
+    }
+}
+</style>
+{% endblock %}
