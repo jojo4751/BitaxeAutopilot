@@ -1,9 +1,9 @@
 {
   "paths": 
   {
-    "database": "C:\\DevPacks\\BITAXE_WEB_V1.0.2\\data\\bitaxe_data.db",
-    "logfile": "C:\\DevPacks\\BITAXE_WEB_V1.0.3\\data\\logs\\log.txt",
-    "config": "C:\\DevPacks\\BITAXE_WEB_V1.0.3\\config\\config.json",
+    "database": "C:\\DevPacks\\BITAXE_WEB_V2.0.0\\data\\bitaxe_data.db",
+    "logfile": "C:\\DevPacks\\BITAXE_WEB_V2.0.0\\data\\logs\\log.txt",
+    "config": "C:\\DevPacks\\BITAXE_WEB_V2.0.0\\config\\config.json",
     "log_table": "logs",
     "tuning_table": "tuning_status",
     "protocol_table": "protocol",
