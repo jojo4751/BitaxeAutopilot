@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en" class="dark-theme">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>{% block title %}BitAxe Analytics Dashboard{% endblock %}</title>
+    
+    <!-- Preload critical fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
+    <link rel="stylesheet" href="https://unpkg.com/lucide@latest/dist/umd/lucide.css">
+    
+    <!-- Chart.js for visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.3/index.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    
+    <!-- Socket.IO for real-time updates -->
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    
+    <!-- Custom CSS Framework -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dark-theme.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile-optimized.css') }}">
+    
+    <!-- Real-time Dashboard Styles -->
+    <style>
+        .realtime-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+        }
+        
+        .realtime-indicator.connected {
+            background: rgba(34, 197, 94, 0.1);
+            border-color: rgba(34, 197, 94, 0.3);
+            color: rgb(34, 197, 94);
+        }
+        
+        .realtime-indicator.disconnected {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: rgba(239, 68, 68, 0.3);
+            color: rgb(239, 68, 68);
+        }
+        
+        .realtime-indicator .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .notification-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            max-width: 400px;
+        }
+        
+        .notification {
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            transform: translateX(100%);
+            animation: slideIn 0.3s ease-out forwards;
+        }
+        
+        .notification-success {
+            border-left: 4px solid rgb(34, 197, 94);
+        }
+        
+        .notification-warning {
+            border-left: 4px solid rgb(245, 158, 11);
+        }
+        
+        .notification-error {
+            border-left: 4px solid rgb(239, 68, 68);
+        }
+        
+        .notification-info {
+            border-left: 4px solid rgb(59, 130, 246);
+        }
+        
+        @keyframes slideIn {
+            to { transform: translateX(0); }
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin: 20px 0;
+        }
+        
+        .chart-loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            color: var(--color-text-muted);
+        }
+        
+        .chart-spinner {
+            width: 32px;
+            height: 32px;
+            border: 2px solid var(--color-border);
+            border-top: 2px solid var(--color-primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .live-update-timestamp {
+            font-size: 0.75rem;
+            color: var(--color-text-muted);
+            text-align: center;
+            margin-top: 8px;
+        }
+        
+        .metric-card.updating {
+            animation: highlight 0.5s ease-out;
+        }
+        
+        @keyframes highlight {
+            0% { background: var(--color-surface); }
+            50% { background: rgba(59, 130, 246, 0.1); }
+            100% { background: var(--color-surface); }
+        }
+        
+        .alert-badge {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .alert-badge::after {
+            content: attr(data-count);
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: rgb(239, 68, 68);
+            color: white;
+            border-radius: 10px;
+            padding: 2px 6px;
+            font-size: 0.75rem;
+            min-width: 16px;
+            text-align: center;
+            display: none;
+        }
+        
+        .alert-badge[data-count]:not([data-count="0"])::after {
+            display: block;
+        }
+    </style>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#0a0a0b">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="BitAxe Analytics">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    
+    <!-- Apple Touch Icons -->
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-152x152.png') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='icons/icon-180x180.png') }}">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='icons/icon-32x32.png') }}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='icons/icon-16x16.png') }}">
+    
+    {% block head %}{% endblock %}
+</head>
+<body class="cyber-dashboard">
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-screen">
+        <div class="loading-animation">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Initializing Analytics Dashboard...</div>
+        </div>
+    </div>
+
+    <!-- Real-time Navigation -->
+    <nav class="navbar" id="main-navbar">
+        <div class="navbar-container">
+            <!-- Brand with Real-time Status -->
+            <div class="navbar-brand">
+                <div class="brand-icon">
+                    <i data-lucide="activity" class="brand-icon-svg"></i>
+                </div>
+                <span class="brand-text">BitAxe Analytics</span>
+                <div class="realtime-indicator ws-status disconnected">
+                    <div class="status-dot"></div>
+                    <span class="status-text">Connecting...</span>
+                </div>
+            </div>
+
+            <!-- Mobile Menu Toggle -->
+            <button class="navbar-toggle" id="navbar-toggle" aria-label="Toggle navigation">
+                <i data-lucide="menu"></i>
+            </button>
+
+            <!-- Navigation Menu -->
+            <div class="navbar-menu" id="navbar-menu">
+                <div class="navbar-nav">
+                    <a href="/dashboard" class="nav-link">
+                        <i data-lucide="gauge-circle"></i>
+                        <span>Live Dashboard</span>
+                    </a>
+                    <div class="nav-dropdown">
+                        <a href="/analytics" class="nav-link dropdown-toggle">
+                            <i data-lucide="trending-up"></i>
+                            <span>Analytics</span>
+                            <i data-lucide="chevron-down" class="dropdown-icon"></i>
+                        </a>
+                        <div class="dropdown-menu">
+                            <a href="/analytics/statistical" class="dropdown-item">
+                                <i data-lucide="bar-chart-3"></i>
+                                <span>Statistical Analysis</span>
+                            </a>
+                            <a href="/analytics/predictive" class="dropdown-item">
+                                <i data-lucide="brain"></i>
+                                <span>Predictive Analytics</span>
+                            </a>
+                            <a href="/analytics/fleet-comparison" class="dropdown-item">
+                                <i data-lucide="users"></i>
+                                <span>Fleet Comparison</span>
+                            </a>
+                            <a href="/analytics/reports" class="dropdown-item">
+                                <i data-lucide="file-text"></i>
+                                <span>Reports</span>
+                            </a>
+                        </div>
+                    </div>
+                    <a href="/control" class="nav-link">
+                        <i data-lucide="settings"></i>
+                        <span>Control</span>
+                    </a>
+                    <a href="/benchmarks" class="nav-link">
+                        <i data-lucide="zap"></i>
+                        <span>Benchmarks</span>
+                    </a>
+                    <a href="/history" class="nav-link">
+                        <i data-lucide="clock"></i>
+                        <span>History</span>
+                    </a>
+                    <a href="/alerts" class="nav-link alert-badge" data-count="0">
+                        <i data-lucide="alert-triangle"></i>
+                        <span>Alerts</span>
+                    </a>
+                </div>
+
+                <!-- Theme & Settings -->
+                <div class="navbar-actions">
+                    <button class="btn btn-ghost btn-icon" id="theme-toggle" title="Toggle theme">
+                        <i data-lucide="sun"></i>
+                    </button>
+                    <button class="btn btn-ghost btn-icon" id="fullscreen-toggle" title="Toggle fullscreen">
+                        <i data-lucide="maximize"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Page Header -->
+        <header class="page-header">
+            <div class="page-title-section">
+                <h1 class="page-title">{% block page_title %}Dashboard{% endblock %}</h1>
+                <p class="page-subtitle">{% block page_subtitle %}Real-time mining analytics and monitoring{% endblock %}</p>
+            </div>
+            
+            <div class="page-actions">
+                {% block page_actions %}
+                <div class="live-update-timestamp" id="last-update">
+                    Last update: Never
+                </div>
+                {% endblock %}
+            </div>
+        </header>
+
+        <!-- Page Content -->
+        <div class="page-content">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <!-- Notification Container -->
+    <div class="notification-container" id="notification-container"></div>
+
+    <!-- Core JavaScript Libraries -->
+    <script src="{{ url_for('static', filename='js/websocket-client.js') }}"></script>
+    
+    <!-- Theme System -->
+    <script src="{{ url_for('static', filename='js/theme-system.js') }}"></script>
+    
+    <!-- Real-time Dashboard Core -->
+    <script>
+        // Real-time dashboard initialization
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 Initializing Real-time Dashboard...');
+            
+            // Update connection status indicators
+            function updateConnectionStatus(connected) {
+                const indicators = document.querySelectorAll('.ws-status');
+                indicators.forEach(indicator => {
+                    indicator.className = `realtime-indicator ws-status ${connected ? 'connected' : 'disconnected'}`;
+                    const statusText = indicator.querySelector('.status-text');
+                    if (statusText) {
+                        statusText.textContent = connected ? 'Live' : 'Offline';
+                    }
+                });
+            }
+            
+            // Update last update timestamp
+            function updateLastUpdateTime() {
+                const timestamp = document.getElementById('last-update');
+                if (timestamp) {
+                    const now = new Date();
+                    timestamp.textContent = `Last update: ${now.toLocaleTimeString()}`;
+                }
+            }
+            
+            // Initialize WebSocket event handlers
+            if (window.bitaxeWS) {
+                bitaxeWS.on('connected', () => {
+                    updateConnectionStatus(true);
+                    showNotification('Real-time updates connected', 'success');
+                });
+                
+                bitaxeWS.on('disconnected', () => {
+                    updateConnectionStatus(false);
+                });
+                
+                bitaxeWS.on('liveUpdate', (data) => {
+                    updateLastUpdateTime();
+                    
+                    // Trigger custom event for page-specific handling
+                    window.dispatchEvent(new CustomEvent('liveDataUpdate', { 
+                        detail: data 
+                    }));
+                });
+                
+                bitaxeWS.on('newAlerts', (alerts) => {
+                    // Update alert badges
+                    const alertBadges = document.querySelectorAll('.alert-badge');
+                    alertBadges.forEach(badge => {
+                        badge.setAttribute('data-count', alerts.length);
+                    });
+                    
+                    // Show notification for critical alerts
+                    alerts.forEach(alert => {
+                        if (alert.severity === 'critical') {
+                            showNotification(`Critical Alert: ${alert.message}`, 'error');
+                        }
+                    });
+                });
+            }
+            
+            // Mobile navigation
+            const navToggle = document.getElementById('navbar-toggle');
+            const navMenu = document.getElementById('navbar-menu');
+            
+            if (navToggle && navMenu) {
+                navToggle.addEventListener('click', () => {
+                    navMenu.classList.toggle('active');
+                });
+            }
+            
+            // Fullscreen toggle
+            const fullscreenToggle = document.getElementById('fullscreen-toggle');
+            if (fullscreenToggle) {
+                fullscreenToggle.addEventListener('click', () => {
+                    if (!document.fullscreenElement) {
+                        document.documentElement.requestFullscreen();
+                        fullscreenToggle.querySelector('i').setAttribute('data-lucide', 'minimize');
+                    } else {
+                        document.exitFullscreen();
+                        fullscreenToggle.querySelector('i').setAttribute('data-lucide', 'maximize');
+                    }
+                    lucide.createIcons();
+                });
+            }
+            
+            // Initialize Lucide icons
+            lucide.createIcons();
+            
+            // Hide loading screen
+            setTimeout(() => {
+                const loadingScreen = document.getElementById('loading-screen');
+                if (loadingScreen) {
+                    loadingScreen.style.opacity = '0';
+                    setTimeout(() => {
+                        loadingScreen.style.display = 'none';
+                    }, 300);
+                }
+            }, 1000);
+            
+            console.log('✅ Real-time Dashboard initialized');
+        });
+    </script>
+    
+    <!-- Page-specific JavaScript -->
+    {% block scripts %}{% endblock %}
+</body>
+</html>

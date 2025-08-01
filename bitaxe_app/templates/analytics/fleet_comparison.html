@@ -1,0 +1,981 @@
+{% extends "base_realtime.html" %}
+
+{% block title %}Fleet Comparison - BitAxe{% endblock %}
+{% block page_title %}Fleet Performance Comparison{% endblock %}
+{% block page_subtitle %}Comprehensive comparative analysis across your mining fleet{% endblock %}
+
+{% block page_actions %}
+<div class="comparison-controls">
+    <div class="timeframe-selector">
+        <select id="timeframe-select" class="form-select" onchange="updateTimeframe()">
+            <option value="24" {% if analysis_period.hours == 24 %}selected{% endif %}>Last 24 Hours</option>
+            <option value="168" {% if analysis_period.hours == 168 %}selected{% endif %}>Last 7 Days</option>
+            <option value="720" {% if analysis_period.hours == 720 %}selected{% endif %}>Last 30 Days</option>
+        </select>
+    </div>
+    <button class="btn btn-primary" onclick="refreshComparison()">
+        <i data-lucide="refresh-cw"></i>
+        Refresh
+    </button>
+    <button class="btn btn-secondary" onclick="exportComparison()">
+        <i data-lucide="download"></i>
+        Export
+    </button>
+</div>
+{% endblock %}
+
+{% block content %}
+{% if comparison_data and comparison_data.fleet_stats %}
+<!-- Fleet Overview -->
+<div class="fleet-overview-section">
+    <h2>Fleet Overview</h2>
+    
+    <div class="fleet-stats-grid">
+        <div class="fleet-stat-card">
+            <div class="stat-icon">
+                <i data-lucide="zap"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-value">{{ "%.2f"|format(comparison_data.fleet_stats.total_hashrate / 1000) }}</div>
+                <div class="stat-label">Total Hashrate (TH/s)</div>
+                <div class="stat-secondary">Avg: {{ "%.1f"|format(comparison_data.fleet_stats.avg_hashrate) }} GH/s</div>
+            </div>
+        </div>
+        
+        <div class="fleet-stat-card">
+            <div class="stat-icon">
+                <i data-lucide="activity"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-value">{{ "%.3f"|format(comparison_data.fleet_stats.avg_efficiency) }}</div>
+                <div class="stat-label">Average Efficiency (GH/W)</div>
+                <div class="stat-secondary">σ: {{ "%.3f"|format(comparison_data.fleet_stats.efficiency_std) }}</div>
+            </div>
+        </div>
+        
+        <div class="fleet-stat-card">
+            <div class="stat-icon">
+                <i data-lucide="thermometer"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-value">{{ "%.1f"|format(comparison_data.fleet_stats.avg_temperature) }}°C</div>
+                <div class="stat-label">Average Temperature</div>
+                <div class="stat-secondary">Range: {{ "%.1f"|format(comparison_data.fleet_stats.temp_range) }}°C</div>
+            </div>
+        </div>
+        
+        <div class="fleet-stat-card">
+            <div class="stat-icon">
+                <i data-lucide="trending-up"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-value">{{ "%.1f"|format(comparison_data.fleet_stats.avg_stability) }}%</div>
+                <div class="stat-label">Average Stability</div>
+                <div class="stat-secondary">Consistency: {{ "%.1f"|format(comparison_data.fleet_stats.avg_consistency) }}%</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Performance Grade Distribution -->
+    <div class="grade-distribution-card">
+        <h3>Performance Grade Distribution</h3>
+        <div class="grade-chart">
+            <div class="grade-bars">
+                {% set total_miners = comparison_data.fleet_stats.grade_distribution.values() | sum %}
+                {% for grade, count in comparison_data.fleet_stats.grade_distribution.items() %}
+                {% set percentage = (count / total_miners * 100) if total_miners > 0 else 0 %}
+                <div class="grade-bar-container">
+                    <div class="grade-label">Grade {{ grade }}</div>
+                    <div class="grade-bar">
+                        <div class="grade-fill grade-{{ grade.lower() }}" style="width: {{ percentage }}%"></div>
+                    </div>
+                    <div class="grade-stats">
+                        <span class="count">{{ count }}</span>
+                        <span class="percentage">({{ "%.1f"|format(percentage) }}%)</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Performance Rankings -->
+<div class="rankings-section">
+    <h2>Performance Rankings</h2>
+    
+    <div class="ranking-tabs">
+        <button class="ranking-tab active" onclick="showRanking('efficiency')">
+            <i data-lucide="trending-up"></i>
+            Efficiency Leaders
+        </button>
+        <button class="ranking-tab" onclick="showRanking('stability')">
+            <i data-lucide="activity"></i>
+            Stability Leaders
+        </button>
+        <button class="ranking-tab" onclick="showRanking('consistency')">
+            <i data-lucide="target"></i>
+            Consistency Leaders
+        </button>
+        <button class="ranking-tab" onclick="showRanking('overall')">
+            <i data-lucide="award"></i>
+            Overall Rankings
+        </button>
+    </div>
+    
+    <div class="ranking-content">
+        <!-- Efficiency Rankings -->
+        <div id="efficiency-rankings" class="ranking-panel active">
+            <div class="ranking-header">
+                <h3>Top Performers by Efficiency</h3>
+                <p>Miners ranked by power efficiency (GH/W ratio)</p>
+            </div>
+            <div class="ranking-list">
+                {% for item in comparison_data.rankings.by_efficiency %}
+                <div class="ranking-item rank-{{ item.rank }}">
+                    <div class="rank-position">
+                        <span class="rank-number">{{ item.rank }}</span>
+                        {% if item.rank <= 3 %}
+                        <i data-lucide="{% if item.rank == 1 %}trophy{% elif item.rank == 2 %}award{% else %}medal{% endif %}" class="rank-icon rank-{{ item.rank }}"></i>
+                        {% endif %}
+                    </div>
+                    <div class="miner-info">
+                        <div class="miner-ip">{{ item.ip }}</div>
+                        <div class="miner-grade grade-{{ item.grade.lower() }}">Grade {{ item.grade }}</div>
+                    </div>
+                    <div class="performance-metric">
+                        <div class="metric-value">{{ "%.3f"|format(item.value) }}</div>
+                        <div class="metric-unit">GH/W</div>
+                    </div>
+                    <div class="performance-chart">
+                        <div class="chart-bar">
+                            <div class="chart-fill" style="width: {{ (item.value / comparison_data.rankings.by_efficiency[0].value * 100) }}%"></div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <!-- Stability Rankings -->
+        <div id="stability-rankings" class="ranking-panel">
+            <div class="ranking-header">
+                <h3>Top Performers by Stability</h3>
+                <p>Miners ranked by performance stability and consistency</p>
+            </div>
+            <div class="ranking-list">
+                {% for item in comparison_data.rankings.by_stability %}
+                <div class="ranking-item rank-{{ item.rank }}">
+                    <div class="rank-position">
+                        <span class="rank-number">{{ item.rank }}</span>
+                        {% if item.rank <= 3 %}
+                        <i data-lucide="{% if item.rank == 1 %}trophy{% elif item.rank == 2 %}award{% else %}medal{% endif %}" class="rank-icon rank-{{ item.rank }}"></i>
+                        {% endif %}
+                    </div>
+                    <div class="miner-info">
+                        <div class="miner-ip">{{ item.ip }}</div>
+                        <div class="miner-grade grade-{{ item.grade.lower() }}">Grade {{ item.grade }}</div>
+                    </div>
+                    <div class="performance-metric">
+                        <div class="metric-value">{{ "%.1f"|format(item.value) }}</div>
+                        <div class="metric-unit">%</div>
+                    </div>
+                    <div class="performance-chart">
+                        <div class="chart-bar">
+                            <div class="chart-fill" style="width: {{ item.value }}%"></div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <!-- Consistency Rankings -->
+        <div id="consistency-rankings" class="ranking-panel">
+            <div class="ranking-header">
+                <h3>Top Performers by Consistency</h3>
+                <p>Miners ranked by performance predictability and reliability</p>
+            </div>
+            <div class="ranking-list">
+                {% for item in comparison_data.rankings.by_consistency %}
+                <div class="ranking-item rank-{{ item.rank }}">
+                    <div class="rank-position">
+                        <span class="rank-number">{{ item.rank }}</span>
+                        {% if item.rank <= 3 %}
+                        <i data-lucide="{% if item.rank == 1 %}trophy{% elif item.rank == 2 %}award{% else %}medal{% endif %}" class="rank-icon rank-{{ item.rank }}"></i>
+                        {% endif %}
+                    </div>
+                    <div class="miner-info">
+                        <div class="miner-ip">{{ item.ip }}</div>
+                        <div class="miner-grade grade-{{ item.grade.lower() }}">Grade {{ item.grade }}</div>
+                    </div>
+                    <div class="performance-metric">
+                        <div class="metric-value">{{ "%.1f"|format(item.value) }}</div>
+                        <div class="metric-unit">%</div>
+                    </div>
+                    <div class="performance-chart">
+                        <div class="chart-bar">
+                            <div class="chart-fill" style="width: {{ item.value }}%"></div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <!-- Overall Rankings -->
+        <div id="overall-rankings" class="ranking-panel">
+            <div class="ranking-header">
+                <h3>Overall Performance Rankings</h3>
+                <p>Comprehensive ranking considering all performance factors</p>
+            </div>
+            <div class="ranking-list">
+                {% for item in comparison_data.rankings.by_overall_grade %}
+                <div class="ranking-item rank-{{ item.rank }}">
+                    <div class="rank-position">
+                        <span class="rank-number">{{ item.rank }}</span>
+                        {% if item.rank <= 3 %}
+                        <i data-lucide="{% if item.rank == 1 %}trophy{% elif item.rank == 2 %}award{% else %}medal{% endif %}" class="rank-icon rank-{{ item.rank }}"></i>
+                        {% endif %}
+                    </div>
+                    <div class="miner-info">
+                        <div class="miner-ip">{{ item.ip }}</div>
+                        <div class="miner-grade grade-{{ item.grade.lower() }}">Grade {{ item.grade }}</div>
+                    </div>
+                    <div class="performance-metrics-multi">
+                        <div class="metric-item">
+                            <span class="metric-label">Efficiency:</span>
+                            <span class="metric-value">{{ "%.3f"|format(item.efficiency) }} GH/W</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="metric-label">Stability:</span>
+                            <span class="metric-value">{{ "%.1f"|format(item.stability) }}%</span>
+                        </div>
+                    </div>
+                    <div class="grade-indicator">
+                        <div class="grade-badge grade-{{ item.grade.lower() }}">{{ item.grade }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detailed Miner Profiles -->
+<div class="detailed-profiles-section">
+    <h2>Detailed Miner Profiles</h2>
+    
+    <div class="profiles-grid">
+        {% for ip, profile in comparison_data.profiles.items() %}
+        <div class="detailed-profile-card grade-{{ profile.performance.grade.lower() }}">
+            <div class="profile-header">
+                <div class="profile-title">
+                    <h3>{{ ip }}</h3>
+                    <div class="grade-badge grade-{{ profile.performance.grade.lower() }}">
+                        Grade {{ profile.performance.grade }}
+                    </div>
+                </div>
+                <div class="profile-actions">
+                    <button class="btn btn-ghost btn-sm" onclick="viewDetailedProfile('{{ ip }}')">
+                        <i data-lucide="eye"></i>
+                        Details
+                    </button>
+                    <button class="btn btn-ghost btn-sm" onclick="generateMinerReport('{{ ip }}')">
+                        <i data-lucide="file-text"></i>
+                        Report
+                    </button>
+                </div>
+            </div>
+            
+            <div class="profile-metrics-grid">
+                <div class="metric-section">
+                    <h4>Performance</h4>
+                    <div class="metrics-row">
+                        <div class="metric">
+                            <span class="value">{{ "%.1f"|format(profile.hashrate_stats.avg) }}</span>
+                            <span class="unit">GH/s</span>
+                            <span class="label">Hashrate</span>
+                        </div>
+                        <div class="metric">
+                            <span class="value">{{ "%.3f"|format(profile.efficiency_stats.avg) }}</span>
+                            <span class="unit">GH/W</span>
+                            <span class="label">Efficiency</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="metric-section">
+                    <h4>Reliability</h4>
+                    <div class="metrics-row">
+                        <div class="metric">
+                            <span class="value">{{ "%.1f"|format(profile.performance.stability_score) }}</span>
+                            <span class="unit">%</span>
+                            <span class="label">Stability</span>
+                        </div>
+                        <div class="metric">
+                            <span class="value">{{ "%.1f"|format(profile.operational.uptime_percentage) }}</span>
+                            <span class="unit">%</span>
+                            <span class="label">Uptime</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="metric-section">
+                    <h4>Temperature</h4>
+                    <div class="metrics-row">
+                        <div class="metric">
+                            <span class="value">{{ "%.1f"|format(profile.temperature_stats.avg) }}</span>
+                            <span class="unit">°C</span>
+                            <span class="label">Average</span>
+                        </div>
+                        <div class="metric">
+                            <span class="value">{{ "%.1f"|format(profile.temperature_stats.max) }}</span>
+                            <span class="unit">°C</span>
+                            <span class="label">Peak</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="metric-section">
+                    <h4>Events</h4>
+                    <div class="metrics-row">
+                        <div class="metric">
+                            <span class="value">{{ profile.events.anomalies }}</span>
+                            <span class="unit"></span>
+                            <span class="label">Anomalies</span>
+                        </div>
+                        <div class="metric">
+                            <span class="value">{{ profile.events.thermal_events }}</span>
+                            <span class="unit"></span>
+                            <span class="label">Thermal</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Performance Indicators -->
+            <div class="performance-indicators">
+                <div class="indicator">
+                    <span class="indicator-label">Efficiency Rank</span>
+                    <span class="indicator-value">
+                        #{{ (comparison_data.rankings.by_efficiency | selectattr('ip', 'equalto', ip) | first).rank }}
+                    </span>
+                </div>
+                <div class="indicator">
+                    <span class="indicator-label">Stability Rank</span>
+                    <span class="indicator-value">
+                        #{{ (comparison_data.rankings.by_stability | selectattr('ip', 'equalto', ip) | first).rank }}
+                    </span>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Fleet Recommendations -->
+{% if comparison_data.recommendations %}
+<div class="recommendations-section">
+    <h2>Fleet Optimization Recommendations</h2>
+    
+    <div class="recommendations-grid">
+        {% for rec in comparison_data.recommendations %}
+        <div class="recommendation-card priority-{{ rec.priority }}">
+            <div class="rec-header">
+                <div class="rec-icon">
+                    <i data-lucide="{% if rec.type == 'temperature' %}thermometer{% elif rec.type == 'efficiency' %}trending-up{% elif rec.type == 'stability' %}activity{% else %}alert-circle{% endif %}"></i>
+                </div>
+                <div class="rec-priority priority-{{ rec.priority }}">{{ rec.priority.title() }}</div>
+            </div>
+            <div class="rec-content">
+                <div class="rec-miner">{{ rec.miner }}</div>
+                <div class="rec-issue">{{ rec.issue }}</div>
+                <div class="rec-action">{{ rec.recommendation }}</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% else %}
+<div class="no-data-message">
+    <i data-lucide="database"></i>
+    <h3>No Comparison Data Available</h3>
+    <p>Unable to generate fleet comparison. Ensure multiple miners are running and data is being collected.</p>
+    <button class="btn btn-primary" onclick="refreshComparison()">
+        <i data-lucide="refresh-cw"></i>
+        Try Again
+    </button>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function updateTimeframe() {
+    const select = document.getElementById('timeframe-select');
+    const hours = select.value;
+    window.location.href = `{{ url_for('fleet_comparison') }}?hours=${hours}`;
+}
+
+function refreshComparison() {
+    window.location.reload();
+}
+
+function exportComparison() {
+    // Implementation for exporting comparison data
+    showNotification('Export feature coming soon!', 'info');
+}
+
+function showRanking(type) {
+    // Hide all ranking panels
+    document.querySelectorAll('.ranking-panel').forEach(panel => {
+        panel.classList.remove('active');
+    });
+    
+    // Remove active class from all tabs
+    document.querySelectorAll('.ranking-tab').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    
+    // Show selected ranking
+    document.getElementById(type + '-rankings').classList.add('active');
+    
+    // Activate clicked tab
+    event.target.closest('.ranking-tab').classList.add('active');
+}
+
+function viewDetailedProfile(ip) {
+    // Navigate to individual miner dashboard
+    window.location.href = `/dashboard/${ip}`;
+}
+
+function generateMinerReport(ip) {
+    // Generate individual miner report
+    fetch('/api/analytics/generate-report', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            type: 'performance',
+            ip: ip
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            showNotification('Error generating report: ' + data.error, 'error');
+        } else {
+            showNotification('Report generated successfully for ' + ip, 'success');
+        }
+    })
+    .catch(error => {
+        showNotification('Error generating report: ' + error.message, 'error');
+    });
+}
+
+function showNotification(message, type) {
+    // Implementation depends on your notification system
+    console.log(type + ':', message);
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+});
+</script>
+
+<style>
+.fleet-overview-section, .rankings-section, .detailed-profiles-section, .recommendations-section {
+    margin-bottom: 3rem;
+}
+
+.fleet-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.fleet-stat-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.stat-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: var(--accent-color);
+    color: white;
+}
+
+.stat-content {
+    flex: 1;
+}
+
+.stat-value {
+    font-size: 1.75rem;
+    font-weight: bold;
+    color: var(--text-primary);
+    line-height: 1;
+}
+
+.stat-label {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+}
+
+.stat-secondary {
+    font-size: 0.75rem;
+    color: var(--text-tertiary);
+    margin-top: 0.25rem;
+}
+
+.grade-distribution-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.5rem;
+}
+
+.grade-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.grade-bar-container {
+    display: grid;
+    grid-template-columns: 80px 1fr auto;
+    gap: 1rem;
+    align-items: center;
+}
+
+.grade-label {
+    font-weight: 500;
+}
+
+.grade-bar {
+    height: 24px;
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.grade-fill {
+    height: 100%;
+    transition: width 0.3s ease;
+}
+
+.grade-fill.grade-a { background: #10b981; }
+.grade-fill.grade-b { background: #3b82f6; }
+.grade-fill.grade-c { background: #f59e0b; }
+.grade-fill.grade-d { background: #ef4444; }
+.grade-fill.grade-f { background: #dc2626; }
+
+.grade-stats {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.count {
+    font-weight: bold;
+    color: var(--text-primary);
+}
+
+.percentage {
+    color: var(--text-secondary);
+}
+
+.ranking-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 2rem;
+    overflow-x: auto;
+}
+
+.ranking-tab {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.25rem;
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.ranking-tab:hover {
+    border-color: var(--accent-color);
+}
+
+.ranking-tab.active {
+    background: var(--accent-color);
+    color: white;
+    border-color: var(--accent-color);
+}
+
+.ranking-panel {
+    display: none;
+}
+
+.ranking-panel.active {
+    display: block;
+}
+
+.ranking-header {
+    margin-bottom: 1.5rem;
+}
+
+.ranking-header h3 {
+    margin-bottom: 0.5rem;
+}
+
+.ranking-header p {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.ranking-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.ranking-item {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1rem;
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    gap: 1rem;
+    align-items: center;
+    transition: all 0.2s;
+}
+
+.ranking-item:hover {
+    border-color: var(--accent-color);
+    transform: translateY(-1px);
+}
+
+.ranking-item.rank-1 { border-left: 4px solid #ffd700; }
+.ranking-item.rank-2 { border-left: 4px solid #c0c0c0; }
+.ranking-item.rank-3 { border-left: 4px solid #cd7f32; }
+
+.rank-position {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 60px;
+}
+
+.rank-number {
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: var(--accent-color);
+}
+
+.rank-icon {
+    font-size: 1.25rem;
+}
+
+.rank-icon.rank-1 { color: #ffd700; }
+.rank-icon.rank-2 { color: #c0c0c0; }
+.rank-icon.rank-3 { color: #cd7f32; }
+
+.miner-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.miner-ip {
+    font-weight: 500;
+    font-size: 1rem;
+}
+
+.miner-grade {
+    font-size: 0.75rem;
+    padding: 0.125rem 0.5rem;
+    border-radius: 3px;
+    width: fit-content;
+}
+
+.miner-grade.grade-a { background: #10b981; color: white; }
+.miner-grade.grade-b { background: #3b82f6; color: white; }
+.miner-grade.grade-c { background: #f59e0b; color: white; }
+.miner-grade.grade-d { background: #ef4444; color: white; }
+.miner-grade.grade-f { background: #dc2626; color: white; }
+
+.performance-metric {
+    text-align: center;
+    min-width: 80px;
+}
+
+.metric-value {
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: var(--text-primary);
+}
+
+.metric-unit {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.performance-metrics-multi {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.875rem;
+}
+
+.metric-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.metric-label {
+    color: var(--text-secondary);
+}
+
+.performance-chart {
+    min-width: 100px;
+}
+
+.chart-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.chart-fill {
+    height: 100%;
+    background: var(--accent-color);
+    transition: width 0.3s ease;
+}
+
+.grade-indicator {
+    display: flex;
+    justify-content: center;
+}
+
+.grade-badge {
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-weight: bold;
+    font-size: 0.875rem;
+}
+
+.grade-badge.grade-a { background: #10b981; color: white; }
+.grade-badge.grade-b { background: #3b82f6; color: white; }
+.grade-badge.grade-c { background: #f59e0b; color: white; }
+.grade-badge.grade-d { background: #ef4444; color: white; }
+.grade-badge.grade-f { background: #dc2626; color: white; }
+
+.profiles-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 1.5rem;
+}
+
+.detailed-profile-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.5rem;
+    border-left: 4px solid var(--border-color);
+}
+
+.detailed-profile-card.grade-a { border-left-color: #10b981; }
+.detailed-profile-card.grade-b { border-left-color: #3b82f6; }
+.detailed-profile-card.grade-c { border-left-color: #f59e0b; }
+.detailed-profile-card.grade-d { border-left-color: #ef4444; }
+.detailed-profile-card.grade-f { border-left-color: #dc2626; }
+
+.profile-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    margin-bottom: 1.5rem;
+}
+
+.profile-title {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.profile-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.profile-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.metric-section h4 {
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.metrics-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+}
+
+.metric {
+    text-align: center;
+    padding: 0.5rem;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+}
+
+.metric .value {
+    display: block;
+    font-weight: bold;
+    color: var(--text-primary);
+}
+
+.metric .unit {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.metric .label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-tertiary);
+    margin-top: 0.25rem;
+}
+
+.performance-indicators {
+    display: flex;
+    justify-content: space-around;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.indicator {
+    text-align: center;
+}
+
+.indicator-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    display: block;
+}
+
+.indicator-value {
+    font-weight: bold;
+    color: var(--accent-color);
+    font-size: 0.875rem;
+}
+
+.recommendations-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1rem;
+}
+
+.recommendation-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1rem;
+    border-left: 4px solid var(--border-color);
+}
+
+.recommendation-card.priority-high { border-left-color: #ef4444; }
+.recommendation-card.priority-medium { border-left-color: #f59e0b; }
+.recommendation-card.priority-low { border-left-color: #10b981; }
+
+.rec-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.rec-icon {
+    color: var(--text-secondary);
+}
+
+.rec-priority {
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.rec-priority.priority-high { background: #fef2f2; color: #dc2626; }
+.rec-priority.priority-medium { background: #fffbeb; color: #d97706; }
+.rec-priority.priority-low { background: #f0fdf4; color: #16a34a; }
+
+.rec-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.rec-miner {
+    font-weight: 500;
+    color: var(--accent-color);
+}
+
+.rec-issue {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.rec-action {
+    font-size: 0.875rem;
+    color: var(--text-primary);
+}
+
+.no-data-message {
+    text-align: center;
+    padding: 3rem;
+    color: var(--text-secondary);
+}
+
+.no-data-message i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+</style>
+{% endblock %}

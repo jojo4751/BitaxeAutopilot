@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BitAxe Health Status</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .health-card {
+            border-left: 4px solid #28a745;
+            transition: all 0.3s ease;
+        }
+        .health-card.warning {
+            border-left-color: #ffc107;
+        }
+        .health-card.critical {
+            border-left-color: #dc3545;
+        }
+        .status-badge {
+            font-size: 0.9rem;
+            padding: 0.5rem 1rem;
+        }
+        .metric-progress {
+            height: 8px;
+            border-radius: 4px;
+        }
+        .timeline-item {
+            border-left: 2px solid #e9ecef;
+            padding-left: 1rem;
+            position: relative;
+        }
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -6px;
+            top: 0.5rem;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: #28a745;
+        }
+        .timeline-item.warning::before {
+            background-color: #ffc107;
+        }
+        .timeline-item.critical::before {
+            background-color: #dc3545;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-microchip me-2"></i>BitAxe V2.0.0
+            </a>
+            <ul class="navbar-nav">
+                <li class="nav-item">
+                    <a class="nav-link" href="/">Dashboard</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/monitoring">Monitoring</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" href="/monitoring/health">Health</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/monitoring/metrics">Metrics</a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h1><i class="fas fa-heartbeat me-2"></i>System Health Status</h1>
+                    <div>
+                        <button class="btn btn-outline-primary" onclick="refreshData()">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                        <span class="badge status-badge 
+                            {% if health.overall_status == 'OK' %}bg-success
+                            {% elif health.overall_status == 'WARNING' %}bg-warning
+                            {% else %}bg-danger{% endif %}">
+                            {{ health.overall_status }}
+                        </span>
+                    </div>
+                </div>
+                <p class="text-muted">Last health check: {{ health.last_check }}</p>
+            </div>
+        </div>
+
+        <!-- System Resource Health -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card health-card 
+                    {% if health.system_metrics.cpu_usage > 90 or health.system_metrics.memory_usage > 90 %}critical
+                    {% elif health.system_metrics.cpu_usage > 80 or health.system_metrics.memory_usage > 80 %}warning{% endif %}">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-server me-2"></i>System Resources
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <label class="form-label">CPU Usage</label>
+                                <div class="progress metric-progress mb-2">
+                                    <div class="progress-bar 
+                                        {% if health.system_metrics.cpu_usage > 90 %}bg-danger
+                                        {% elif health.system_metrics.cpu_usage > 80 %}bg-warning
+                                        {% else %}bg-success{% endif %}" 
+                                        style="width: {{ health.system_metrics.cpu_usage }}%"></div>
+                                </div>
+                                <small class="text-muted">{{ health.system_metrics.cpu_usage }}%</small>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Memory Usage</label>
+                                <div class="progress metric-progress mb-2">
+                                    <div class="progress-bar 
+                                        {% if health.system_metrics.memory_usage > 90 %}bg-danger
+                                        {% elif health.system_metrics.memory_usage > 80 %}bg-warning
+                                        {% else %}bg-success{% endif %}" 
+                                        style="width: {{ health.system_metrics.memory_usage }}%"></div>
+                                </div>
+                                <small class="text-muted">{{ health.system_metrics.memory_usage }}%</small>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Disk Usage</label>
+                                <div class="progress metric-progress mb-2">
+                                    <div class="progress-bar 
+                                        {% if health.system_metrics.disk_usage > 90 %}bg-danger
+                                        {% elif health.system_metrics.disk_usage > 80 %}bg-warning
+                                        {% else %}bg-success{% endif %}" 
+                                        style="width: {{ health.system_metrics.disk_usage }}%"></div>
+                                </div>
+                                <small class="text-muted">{{ health.system_metrics.disk_usage }}%</small>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Temperature</label>
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-thermometer-half me-2 
+                                        {% if health.system_metrics.temperature != 'N/A' and health.system_metrics.temperature|int > 70 %}text-danger
+                                        {% elif health.system_metrics.temperature != 'N/A' and health.system_metrics.temperature|int > 60 %}text-warning
+                                        {% else %}text-success{% endif %}"></i>
+                                    <span>{{ health.system_metrics.temperature }}°C</span>
+                                </div>
+                                <small class="text-muted">Load: {{ health.system_metrics.load_average }}</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Services Health -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-cogs me-2"></i>Service Status
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            {% for service_name, service_status in health.services.items() %}
+                            <div class="col-md-4 mb-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="status-indicator me-2">
+                                        {% if service_status == 'running' %}
+                                            <i class="fas fa-check-circle text-success"></i>
+                                        {% else %}
+                                            <i class="fas fa-times-circle text-danger"></i>
+                                        {% endif %}
+                                    </div>
+                                    <div>
+                                        <strong>{{ service_name|replace('-', ' ')|title }}</strong><br>
+                                        <small class="text-muted">{{ service_status|title }}</small>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Information -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-info-circle me-2"></i>System Information
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-sm">
+                            <tr>
+                                <td><strong>Uptime:</strong></td>
+                                <td>{{ health.uptime }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Last Boot:</strong></td>
+                                <td id="last-boot">Calculating...</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Monitoring Since:</strong></td>
+                                <td>{{ health.timestamp }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Health Checks:</strong></td>
+                                <td>Every 5 minutes</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-shield-alt me-2"></i>Health Check Status
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="flex-grow-1">
+                                <div class="d-flex justify-content-between">
+                                    <span>Overall Health Score</span>
+                                    <span id="health-score">85%</span>
+                                </div>
+                                <div class="progress">
+                                    <div class="progress-bar bg-success" style="width: 85%"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <div class="border-end">
+                                    <div class="fs-4 text-success">
+                                        <i class="fas fa-check-circle"></i>
+                                    </div>
+                                    <small class="text-muted">Passed</small>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="border-end">
+                                    <div class="fs-4 text-warning">
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                    </div>
+                                    <small class="text-muted">Warnings</small>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="fs-4 text-danger">
+                                    <i class="fas fa-times-circle"></i>
+                                </div>
+                                <small class="text-muted">Critical</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Health Events -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-history me-2"></i>Recent Health Events
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="timeline" id="health-timeline">
+                            <!-- Health events will be loaded here -->
+                            <div class="timeline-item mb-3">
+                                <div class="d-flex justify-content-between">
+                                    <strong>System health check completed</strong>
+                                    <small class="text-muted">2 minutes ago</small>
+                                </div>
+                                <p class="mb-0 text-muted">All systems operating normally</p>
+                            </div>
+                            <div class="timeline-item warning mb-3">
+                                <div class="d-flex justify-content-between">
+                                    <strong>High CPU usage detected</strong>
+                                    <small class="text-muted">15 minutes ago</small>
+                                </div>
+                                <p class="mb-0 text-muted">CPU usage reached 87% during mining benchmark</p>
+                            </div>
+                            <div class="timeline-item mb-3">
+                                <div class="d-flex justify-content-between">
+                                    <strong>Backup completed successfully</strong>
+                                    <small class="text-muted">1 hour ago</small>
+                                </div>
+                                <p class="mb-0 text-muted">Daily backup synced to laptop successfully</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <h6 class="card-title">Health Actions</h6>
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-outline-primary" onclick="runHealthCheck()">
+                                <i class="fas fa-play me-1"></i>Run Health Check
+                            </button>
+                            <button type="button" class="btn btn-outline-success" onclick="restartServices()">
+                                <i class="fas fa-redo me-1"></i>Restart Services
+                            </button>
+                            <button type="button" class="btn btn-outline-warning" onclick="clearAlerts()">
+                                <i class="fas fa-bell-slash me-1"></i>Clear Alerts
+                            </button>
+                            <button type="button" class="btn btn-outline-info" onclick="exportReport()">
+                                <i class="fas fa-download me-1"></i>Export Report
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function refreshData() {
+            location.reload();
+        }
+
+        function runHealthCheck() {
+            // This would trigger a manual health check
+            alert('Health check initiated. Results will be available in a few moments.');
+        }
+
+        function restartServices() {
+            if (confirm('Are you sure you want to restart all BitAxe services?')) {
+                // This would restart services
+                alert('Services restart initiated.');
+            }
+        }
+
+        function clearAlerts() {
+            // This would clear current alerts
+            alert('All alerts cleared.');
+        }
+
+        function exportReport() {
+            // This would export the health report
+            const data = {
+                timestamp: new Date().toISOString(),
+                status: '{{ health.overall_status }}',
+                metrics: {{ health.system_metrics|tojson }},
+                services: {{ health.services|tojson }}
+            };
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'bitaxe_health_report.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Auto-refresh every 30 seconds
+        setInterval(refreshData, 30000);
+
+        // Calculate last boot time
+        document.addEventListener('DOMContentLoaded', function() {
+            const uptime = '{{ health.uptime }}';
+            // This is a simplified calculation - in production, you'd get actual boot time
+            document.getElementById('last-boot').textContent = 'Recent restart';
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,915 @@
+/**
+ * BitAxe Mobile-First Responsive Design
+ * Optimized for touch interfaces and small screens
+ */
+
+/* ==============================================
+   Mobile-First Base Styles
+   ============================================== */
+
+/* Touch-friendly sizing */
+* {
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+    tap-highlight-color: rgba(0, 0, 0, 0);
+}
+
+html {
+    font-size: 16px; /* Base font size for mobile */
+    line-height: 1.5;
+}
+
+body {
+    font-size: 0.875rem; /* 14px on mobile */
+    overflow-x: hidden;
+}
+
+/* ==============================================
+   Navigation Enhancements
+   ============================================== */
+
+.navbar {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.navbar-container {
+    padding: 0.75rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.navbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+}
+
+.brand-text {
+    display: none; /* Hide on very small screens */
+}
+
+.navbar-toggle {
+    display: block;
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    transition: background-color 0.2s;
+}
+
+.navbar-toggle:hover {
+    background-color: var(--bg-secondary);
+}
+
+.navbar-menu {
+    position: fixed;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--card-bg);
+    border-top: 1px solid var(--border-color);
+    transform: translateY(-100%);
+    transition: transform 0.3s ease;
+    max-height: 0;
+    overflow: hidden;
+    z-index: 999;
+}
+
+.navbar-menu.active {
+    transform: translateY(0);
+    max-height: 500px;
+}
+
+.navbar-nav {
+    display: flex;
+    flex-direction: column;
+    padding: 1rem 0;
+}
+
+.nav-link {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.875rem 1.5rem;
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: all 0.2s;
+    min-height: 48px; /* Touch-friendly height */
+}
+
+.nav-link:hover,
+.nav-link.active {
+    background-color: var(--bg-secondary);
+    color: var(--accent-color);
+}
+
+.nav-link i {
+    font-size: 1.25rem;
+    width: 24px;
+    text-align: center;
+}
+
+/* ==============================================
+   Bottom Tab Bar (Mobile Primary Navigation)
+   ============================================== */
+
+.bottom-tab-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--card-bg);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-around;
+    padding: 0.5rem 0;
+    z-index: 1000;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.tab-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.5rem 0.75rem;
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: all 0.2s;
+    min-width: 48px;
+    min-height: 48px;
+    border-radius: 0.5rem;
+    position: relative;
+}
+
+.tab-item:hover,
+.tab-item.active {
+    color: var(--accent-color);
+    background-color: rgba(var(--accent-color-rgb), 0.1);
+}
+
+.tab-item i {
+    font-size: 1.25rem;
+}
+
+.tab-item span {
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.tab-item.active::after {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 24px;
+    height: 2px;
+    background: var(--accent-color);
+    border-radius: 2px;
+}
+
+/* ==============================================
+   Main Content Layout
+   ============================================== */
+
+.main-content {
+    padding-bottom: 80px; /* Space for bottom tab bar */
+    min-height: calc(100vh - 70px); /* Account for navbar */
+}
+
+.page-header {
+    padding: 1rem 1rem 0.5rem;
+    background: var(--bg-primary);
+    position: sticky;
+    top: 70px;
+    z-index: 100;
+}
+
+.page-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+    color: var(--text-primary);
+}
+
+.page-subtitle {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+}
+
+.page-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.content-wrapper,
+.page-content {
+    padding: 1rem;
+}
+
+/* ==============================================
+   Cards & Components
+   ============================================== */
+
+.metric-card,
+.card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.metric-card:active {
+    transform: scale(0.98);
+}
+
+.metrics-grid,
+.fleet-stats-grid,
+.profiles-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.metric-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.metric-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 0.25rem;
+}
+
+/* ==============================================
+   Charts Mobile Optimization
+   ============================================== */
+
+.chart-container {
+    position: relative;
+    height: 250px; /* Reduced height for mobile */
+    margin: 1rem 0;
+    background: var(--card-bg);
+    border-radius: 0.5rem;
+    padding: 0.5rem;
+}
+
+.chart-card {
+    margin-bottom: 1.5rem;
+}
+
+.chart-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding: 0 0.5rem;
+}
+
+.chart-header h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.chart-controls {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+/* ==============================================
+   Forms & Inputs
+   ============================================== */
+
+.form-select,
+.form-input {
+    min-height: 44px; /* Touch-friendly */
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    background: var(--card-bg);
+    color: var(--text-primary);
+    font-size: 1rem;
+    transition: border-color 0.2s;
+}
+
+.form-select:focus,
+.form-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px rgba(var(--accent-color-rgb), 0.1);
+}
+
+/* ==============================================
+   Buttons
+   ============================================== */
+
+.btn {
+    min-height: 44px;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    text-decoration: none;
+}
+
+.btn:active {
+    transform: scale(0.98);
+}
+
+.btn-primary {
+    background: var(--accent-color);
+    color: white;
+}
+
+.btn-secondary {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+.btn-ghost {
+    background: transparent;
+    color: var(--text-secondary);
+}
+
+.btn-sm {
+    min-height: 36px;
+    padding: 0.5rem 1rem;
+    font-size: 0.8125rem;
+}
+
+.btn-icon {
+    min-height: 44px;
+    width: 44px;
+    padding: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ==============================================
+   Floating Action Button
+   ============================================== */
+
+.fab-container {
+    position: fixed;
+    bottom: 90px; /* Above tab bar */
+    right: 1rem;
+    z-index: 500;
+}
+
+.fab {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--accent-color);
+    color: white;
+    border: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.fab:active {
+    transform: scale(0.95);
+}
+
+.fab i {
+    font-size: 1.5rem;
+}
+
+.fab-menu {
+    position: absolute;
+    bottom: 70px;
+    right: 0;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+    padding: 0.5rem;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    min-width: 200px;
+    transform: scale(0.8) translateY(20px);
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.2s;
+}
+
+.fab-menu.active {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+    pointer-events: all;
+}
+
+.fab-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    cursor: pointer;
+    border-radius: 0.5rem;
+    transition: background-color 0.2s;
+    width: 100%;
+    text-align: left;
+    min-height: 44px;
+}
+
+.fab-item:hover {
+    background-color: var(--bg-secondary);
+}
+
+/* ==============================================
+   Lists & Tables Mobile Optimization
+   ============================================== */
+
+.ranking-list,
+.recommendations-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.ranking-item,
+.recommendation-item {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    transition: transform 0.2s;
+}
+
+.ranking-item:active {
+    transform: scale(0.98);
+}
+
+/* Stack content vertically on mobile */
+.ranking-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.rank-position {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.miner-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.performance-metrics-multi {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+}
+
+/* ==============================================
+   Modals Mobile Optimization
+   ============================================== */
+
+.modal {
+    padding: 1rem;
+}
+
+.modal-content {
+    width: 100%;
+    max-width: none;
+    max-height: 90vh;
+    margin: 0;
+    border-radius: 1rem 1rem 0 0;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    transform: translateY(100%);
+    transition: transform 0.3s ease;
+}
+
+.modal.active .modal-content {
+    transform: translateY(0);
+}
+
+.modal-header {
+    padding: 1rem 1rem 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+    position: sticky;
+    top: 0;
+    background: var(--card-bg);
+    z-index: 1;
+}
+
+.modal-body {
+    padding: 1rem;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.modal-footer {
+    padding: 0.5rem 1rem 1rem;
+    border-top: 1px solid var(--border-color);
+    position: sticky;
+    bottom: 0;
+    background: var(--card-bg);
+}
+
+/* ==============================================
+   Analytics Dashboard Mobile Specific
+   ============================================== */
+
+.analytics-controls,
+.comparison-controls,
+.reports-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.timeframe-selector {
+    flex: 1;
+}
+
+.fleet-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+}
+
+.fleet-stat-card {
+    flex-direction: column;
+    text-align: center;
+    gap: 0.5rem;
+}
+
+.stat-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 1.25rem;
+}
+
+.detailed-profiles-section .profiles-grid {
+    grid-template-columns: 1fr;
+}
+
+.profile-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+}
+
+.profile-actions {
+    align-self: stretch;
+}
+
+/* ==============================================
+   Predictive Analytics Mobile
+   ============================================== */
+
+.predictions-grid {
+    grid-template-columns: 1fr;
+}
+
+.prediction-card {
+    padding: 1rem;
+}
+
+.prediction-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+}
+
+.risk-score {
+    margin: 1rem 0;
+}
+
+.score-circle {
+    width: 80px;
+    height: 80px;
+}
+
+.forecast-controls {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+}
+
+/* ==============================================
+   Alerts & Notifications
+   ============================================== */
+
+.notification-container {
+    position: fixed;
+    top: 80px; /* Below navbar */
+    left: 1rem;
+    right: 1rem;
+    z-index: 10000;
+}
+
+.notification {
+    margin-bottom: 0.75rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.alert {
+    border-radius: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+/* ==============================================
+   Responsive Breakpoints
+   ============================================== */
+
+/* Small phones (320px and up) */
+@media (min-width: 320px) {
+    .brand-text {
+        display: inline; /* Show brand text on slightly larger screens */
+    }
+    
+    .metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Large phones (480px and up) */
+@media (min-width: 480px) {
+    html {
+        font-size: 17px;
+    }
+    
+    body {
+        font-size: 0.9375rem; /* 15px */
+    }
+    
+    .fleet-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .chart-container {
+        height: 300px;
+    }
+    
+    .analytics-controls,
+    .comparison-controls,
+    .reports-controls {
+        flex-direction: row;
+        align-items: center;
+    }
+}
+
+/* Small tablets (640px and up) */
+@media (min-width: 640px) {
+    .navbar-toggle {
+        display: none;
+    }
+    
+    .navbar-menu {
+        position: static;
+        transform: none;
+        max-height: none;
+        background: transparent;
+        border: none;
+    }
+    
+    .navbar-nav {
+        flex-direction: row;
+        padding: 0;
+    }
+    
+    .nav-link {
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+    }
+    
+    .bottom-tab-bar {
+        display: none; /* Hide on tablets and up */
+    }
+    
+    .main-content {
+        padding-bottom: 1rem;
+    }
+    
+    .fab-container {
+        bottom: 1rem;
+    }
+    
+    .metrics-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+    
+    .fleet-stats-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+    
+    .predictions-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Medium tablets (768px and up) */
+@media (min-width: 768px) {
+    html {
+        font-size: 18px;
+    }
+    
+    body {
+        font-size: 1rem;
+    }
+    
+    .page-header {
+        padding: 1.5rem 2rem 1rem;
+    }
+    
+    .content-wrapper,
+    .page-content {
+        padding: 1.5rem 2rem;
+    }
+    
+    .chart-container {
+        height: 400px;
+    }
+    
+    .modal-content {
+        position: relative;
+        transform: none;
+        border-radius: 0.75rem;
+        max-width: 600px;
+        margin: auto;
+    }
+    
+    .profiles-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Large tablets (1024px and up) */
+@media (min-width: 1024px) {
+    .navbar-container {
+        padding: 1rem 2rem;
+    }
+    
+    .metrics-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+    
+    .fleet-stats-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+    
+    .predictions-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+    
+    .profiles-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+    
+    .ranking-item {
+        flex-direction: row;
+        align-items: center;
+    }
+}
+
+/* Desktop (1280px and up) */
+@media (min-width: 1280px) {
+    .container {
+        max-width: 1280px;
+        margin: 0 auto;
+    }
+    
+    .metrics-grid {
+        grid-template-columns: repeat(5, 1fr);
+    }
+    
+    .predictions-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+    
+    .profiles-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+/* ==============================================
+   Touch & Gesture Enhancements
+   ============================================== */
+
+/* Larger touch targets */
+button,
+.btn,
+.nav-link,
+.tab-item {
+    min-height: 44px;
+    min-width: 44px;
+}
+
+/* Smooth scrolling */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Prevent zoom on input focus (iOS Safari) */
+input,
+select,
+textarea {
+    font-size: 16px;
+}
+
+/* Better focus indicators for keyboard navigation */
+button:focus,
+.btn:focus,
+input:focus,
+select:focus {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .card,
+    .metric-card {
+        border-width: 2px;
+    }
+    
+    .btn {
+        border: 2px solid currentColor;
+    }
+}
+
+/* ==============================================
+   Print Styles
+   ============================================== */
+
+@media print {
+    .navbar,
+    .bottom-tab-bar,
+    .fab-container,
+    .notification-container {
+        display: none;
+    }
+    
+    .main-content {
+        padding: 0;
+    }
+    
+    .chart-container {
+        height: 300px;
+    }
+    
+    * {
+        color: black !important;
+        background: white !important;
+    }
+}

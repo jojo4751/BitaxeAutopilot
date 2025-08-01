@@ -1,0 +1,882 @@
+{% extends "base_realtime.html" %}
+
+{% block title %}Analytics Reports - BitAxe{% endblock %}
+{% block page_title %}Analytics Reports{% endblock %}
+{% block page_subtitle %}Automated reporting and data insights{% endblock %}
+
+{% block page_actions %}
+<div class="reports-controls">
+    <button class="btn btn-primary" onclick="generateNewReport()">
+        <i data-lucide="plus"></i>
+        Generate Report
+    </button>
+    <button class="btn btn-secondary" onclick="scheduleReport()">
+        <i data-lucide="calendar"></i>
+        Schedule Report
+    </button>
+    <button class="btn btn-secondary" onclick="exportReports()">
+        <i data-lucide="download"></i>
+        Export All
+    </button>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Report Generation Section -->
+<div class="report-generation-section">
+    <h2>Generate New Report</h2>
+    
+    <div class="report-types-grid">
+        <div class="report-type-card" onclick="generateReport('daily')">
+            <div class="report-icon">
+                <i data-lucide="calendar-days"></i>
+            </div>
+            <h3>Daily Report</h3>
+            <p>Comprehensive daily mining operations summary with performance metrics and alerts</p>
+            <div class="report-features">
+                <span class="feature">Fleet Performance</span>
+                <span class="feature">Energy Efficiency</span>
+                <span class="feature">Alert Summary</span>
+            </div>
+        </div>
+        
+        <div class="report-type-card" onclick="generateReport('weekly')">
+            <div class="report-icon">
+                <i data-lucide="calendar-week"></i>
+            </div>
+            <h3>Weekly Report</h3>
+            <p>Detailed weekly analysis with trends, comparisons, and strategic insights</p>
+            <div class="report-features">
+                <span class="feature">Trend Analysis</span>
+                <span class="feature">Fleet Comparison</span>
+                <span class="feature">Recommendations</span>
+            </div>
+        </div>
+        
+        <div class="report-type-card" onclick="showPerformanceReportDialog()">
+            <div class="report-icon">
+                <i data-lucide="bar-chart-3"></i>
+            </div>
+            <h3>Performance Report</h3>
+            <p>Individual miner deep-dive analysis with predictive insights</p>
+            <div class="report-features">
+                <span class="feature">Statistical Analysis</span>
+                <span class="feature">Failure Prediction</span>
+                <span class="feature">Optimization Tips</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Reports Section -->
+<div class="recent-reports-section">
+    <h2>Recent Reports</h2>
+    
+    {% if recent_reports %}
+    <div class="reports-list">
+        {% for report in recent_reports %}
+        <div class="report-item">
+            <div class="report-header">
+                <div class="report-info">
+                    <h3>{{ report.title }}</h3>
+                    <div class="report-meta">
+                        <span class="report-type">{{ report.report_type.title() }} Report</span>
+                        <span class="report-date">{{ report.generated_at[:19].replace('T', ' ') }}</span>
+                    </div>
+                </div>
+                <div class="report-actions">
+                    <button class="btn btn-ghost btn-sm" onclick="viewReport('{{ report.report_id }}')">
+                        <i data-lucide="eye"></i>
+                        View
+                    </button>
+                    <button class="btn btn-ghost btn-sm" onclick="downloadReport('{{ report.report_id }}')">
+                        <i data-lucide="download"></i>
+                        Download
+                    </button>
+                </div>
+            </div>
+            
+            <div class="report-summary">
+                {% if report.executive_summary %}
+                <div class="executive-summary">
+                    <h4>Executive Summary</h4>
+                    <p>{{ report.executive_summary[:200] }}{% if report.executive_summary|length > 200 %}...{% endif %}</p>
+                </div>
+                {% endif %}
+                
+                {% if report.key_insights %}
+                <div class="key-insights">
+                    <h4>Key Insights</h4>
+                    <div class="insights-list">
+                        {% for insight in report.key_insights[:3] %}
+                        <div class="insight-item">
+                            <i data-lucide="lightbulb"></i>
+                            <span>{{ insight }}</span>
+                        </div>
+                        {% endfor %}
+                        {% if report.key_insights|length > 3 %}
+                        <div class="insight-item more-insights">
+                            <span>+{{ report.key_insights|length - 3 }} more insights</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if report.recommendations %}
+                <div class="report-recommendations">
+                    <h4>Top Recommendations</h4>
+                    <div class="recommendations-preview">
+                        {% for rec in report.recommendations[:2] %}
+                        <div class="recommendation-preview priority-{{ rec.priority }}">
+                            <i data-lucide="{% if rec.priority == 'high' %}alert-triangle{% elif rec.priority == 'medium' %}info{% else %}check-circle{% endif %}"></i>
+                            <span>{{ rec.recommendation[:80] }}{% if rec.recommendation|length > 80 %}...{% endif %}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            
+            {% if report.performance_metrics %}
+            <div class="report-metrics">
+                <div class="metrics-grid">
+                    {% if report.performance_metrics.total_hashrate %}
+                    <div class="metric">
+                        <div class="metric-value">{{ "%.2f"|format(report.performance_metrics.total_hashrate / 1000) }}</div>
+                        <div class="metric-label">TH/s Total</div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if report.performance_metrics.avg_efficiency %}
+                    <div class="metric">
+                        <div class="metric-value">{{ "%.3f"|format(report.performance_metrics.avg_efficiency) }}</div>
+                        <div class="metric-label">Avg Efficiency</div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if report.performance_metrics.uptime_percentage %}
+                    <div class="metric">
+                        <div class="metric-value">{{ "%.1f"|format(report.performance_metrics.uptime_percentage) }}%</div>
+                        <div class="metric-label">Fleet Uptime</div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if report.performance_metrics.active_alerts %}
+                    <div class="metric">
+                        <div class="metric-value">{{ report.performance_metrics.active_alerts }}</div>
+                        <div class="metric-label">Active Alerts</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="no-reports-message">
+        <i data-lucide="file-text"></i>
+        <h3>No Reports Available</h3>
+        <p>Generate your first report to see detailed analytics and insights about your mining operations.</p>
+        <button class="btn btn-primary" onclick="generateReport('daily')">
+            <i data-lucide="plus"></i>
+            Generate Daily Report
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Report Archives Section -->
+{% if reports.total_reports and reports.total_reports > recent_reports|length %}
+<div class="report-archives-section">
+    <h2>Report Archives</h2>
+    <div class="archives-summary">
+        <div class="archive-stat">
+            <div class="stat-value">{{ reports.total_reports or 0 }}</div>
+            <div class="stat-label">Total Reports</div>
+        </div>
+        <div class="archive-stat">
+            <div class="stat-value">{{ reports.report_types_count.daily or 0 }}</div>
+            <div class="stat-label">Daily Reports</div>
+        </div>
+        <div class="archive-stat">
+            <div class="stat-value">{{ reports.report_types_count.weekly or 0 }}</div>
+            <div class="stat-label">Weekly Reports</div>
+        </div>
+        <div class="archive-stat">
+            <div class="stat-value">{{ reports.report_types_count.performance or 0 }}</div>
+            <div class="stat-label">Performance Reports</div>
+        </div>
+    </div>
+    <button class="btn btn-secondary" onclick="showArchives()">
+        <i data-lucide="archive"></i>
+        Browse All Reports
+    </button>
+</div>
+{% endif %}
+{% endblock %}
+
+<!-- Report Generation Modal -->
+<div id="performance-report-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Generate Performance Report</h3>
+            <button class="modal-close" onclick="closePerformanceReportDialog()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label for="performance-miner-select">Select Miner:</label>
+                <select id="performance-miner-select" class="form-select">
+                    <!-- Options will be populated by JavaScript -->
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="performance-timeframe">Analysis Timeframe:</label>
+                <select id="performance-timeframe" class="form-select">
+                    <option value="24">Last 24 Hours</option>
+                    <option value="168" selected>Last 7 Days</option>
+                    <option value="720">Last 30 Days</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closePerformanceReportDialog()">Cancel</button>
+            <button class="btn btn-primary" onclick="generatePerformanceReport()">Generate Report</button>
+        </div>
+    </div>
+</div>
+
+<!-- Report Viewer Modal -->
+<div id="report-viewer-modal" class="modal modal-large" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="report-viewer-title">Report Details</h3>
+            <button class="modal-close" onclick="closeReportViewer()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div id="report-viewer-content">
+                <!-- Report content will be loaded here -->
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeReportViewer()">Close</button>
+            <button class="btn btn-primary" onclick="downloadCurrentReport()">
+                <i data-lucide="download"></i>
+                Download
+            </button>
+        </div>
+    </div>
+</div>
+
+{% block scripts %}
+<script>
+let currentReportId = null;
+
+function generateNewReport() {
+    // Show report type selection or go to first option
+    generateReport('daily');
+}
+
+function generateReport(type) {
+    showLoadingNotification('Generating ' + type + ' report...');
+    
+    fetch('/api/analytics/generate-report', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            type: type
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        hideLoadingNotification();
+        if (data.error) {
+            showNotification('Error generating report: ' + data.error, 'error');
+        } else {
+            showNotification('Report generated successfully!', 'success');
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        }
+    })
+    .catch(error => {
+        hideLoadingNotification();
+        showNotification('Error generating report: ' + error.message, 'error');
+    });
+}
+
+function showPerformanceReportDialog() {
+    // Populate miner dropdown (you'd get this from the server)
+    const minerSelect = document.getElementById('performance-miner-select');
+    // This would be populated from your miner configuration
+    
+    document.getElementById('performance-report-modal').style.display = 'flex';
+}
+
+function closePerformanceReportDialog() {
+    document.getElementById('performance-report-modal').style.display = 'none';
+}
+
+function generatePerformanceReport() {
+    const miner = document.getElementById('performance-miner-select').value;
+    const timeframe = document.getElementById('performance-timeframe').value;
+    
+    if (!miner) {
+        showNotification('Please select a miner', 'error');
+        return;
+    }
+    
+    closePerformanceReportDialog();
+    showLoadingNotification('Generating performance report for ' + miner + '...');
+    
+    fetch('/api/analytics/generate-report', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            type: 'performance',
+            ip: miner,
+            timeframe_hours: parseInt(timeframe)
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        hideLoadingNotification();
+        if (data.error) {
+            showNotification('Error generating report: ' + data.error, 'error');
+        } else {
+            showNotification('Performance report generated successfully!', 'success');
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        }
+    })
+    .catch(error => {
+        hideLoadingNotification();
+        showNotification('Error generating report: ' + error.message, 'error');
+    });
+}
+
+function viewReport(reportId) {
+    currentReportId = reportId;
+    
+    // Fetch and display report details
+    fetch(`/api/analytics/report/${reportId}`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            showNotification('Error loading report: ' + data.error, 'error');
+            return;
+        }
+        
+        displayReportInModal(data);
+    })
+    .catch(error => {
+        showNotification('Error loading report: ' + error.message, 'error');
+    });
+}
+
+function displayReportInModal(report) {
+    document.getElementById('report-viewer-title').textContent = report.title;
+    
+    let content = `
+        <div class="report-content">
+            <div class="report-header-info">
+                <div class="report-meta-info">
+                    <span><strong>Type:</strong> ${report.report_type}</span>
+                    <span><strong>Generated:</strong> ${report.generated_at.replace('T', ' ').substring(0, 19)}</span>
+                    <span><strong>Period:</strong> ${report.analysis_period.start.substring(0, 19)} to ${report.analysis_period.end.substring(0, 19)}</span>
+                </div>
+            </div>
+    `;
+    
+    if (report.executive_summary) {
+        content += `
+            <div class="report-section">
+                <h3>Executive Summary</h3>
+                <p>${report.executive_summary}</p>
+            </div>
+        `;
+    }
+    
+    if (report.key_insights && report.key_insights.length > 0) {
+        content += `
+            <div class="report-section">
+                <h3>Key Insights</h3>
+                <ul class="insights-full-list">
+                    ${report.key_insights.map(insight => `<li>${insight}</li>`).join('')}
+                </ul>
+            </div>
+        `;
+    }
+    
+    if (report.performance_metrics) {
+        content += `
+            <div class="report-section">
+                <h3>Performance Metrics</h3>
+                <div class="metrics-detailed-grid">
+                    ${Object.entries(report.performance_metrics).map(([key, value]) => `
+                        <div class="detailed-metric">
+                            <div class="metric-name">${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</div>
+                            <div class="metric-value">${typeof value === 'number' ? value.toFixed(3) : value}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+    
+    if (report.recommendations && report.recommendations.length > 0) {
+        content += `
+            <div class="report-section">
+                <h3>Recommendations</h3>
+                <div class="recommendations-detailed">
+                    ${report.recommendations.map(rec => `
+                        <div class="recommendation-detailed priority-${rec.priority}">
+                            <div class="rec-priority">${rec.priority.toUpperCase()}</div>
+                            <div class="rec-text">${rec.recommendation}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+    
+    content += '</div>';
+    
+    document.getElementById('report-viewer-content').innerHTML = content;
+    document.getElementById('report-viewer-modal').style.display = 'flex';
+}
+
+function closeReportViewer() {
+    document.getElementById('report-viewer-modal').style.display = 'none';
+    currentReportId = null;
+}
+
+function downloadReport(reportId) {
+    window.open(`/api/analytics/report/${reportId}/download`, '_blank');
+}
+
+function downloadCurrentReport() {
+    if (currentReportId) {
+        downloadReport(currentReportId);
+    }
+}
+
+function scheduleReport() {
+    showNotification('Report scheduling feature coming soon!', 'info');
+}
+
+function exportReports() {
+    showNotification('Bulk export feature coming soon!', 'info');
+}
+
+function showArchives() {
+    showNotification('Report archives feature coming soon!', 'info');
+}
+
+function showLoadingNotification(message) {
+    // Implementation depends on your notification system
+    console.log('Loading:', message);
+}
+
+function hideLoadingNotification() {
+    // Implementation depends on your notification system
+    console.log('Loading complete');
+}
+
+function showNotification(message, type) {
+    // Implementation depends on your notification system
+    console.log(type + ':', message);
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+});
+</script>
+
+<style>
+.report-generation-section, .recent-reports-section, .report-archives-section {
+    margin-bottom: 3rem;
+}
+
+.report-types-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1rem;
+}
+
+.report-type-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.report-type-card:hover {
+    border-color: var(--accent-color);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.report-icon {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1rem;
+}
+
+.report-icon i {
+    font-size: 2.5rem;
+    color: var(--accent-color);
+}
+
+.report-type-card h3 {
+    text-align: center;
+    margin-bottom: 0.75rem;
+}
+
+.report-type-card p {
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    margin-bottom: 1rem;
+}
+
+.report-features {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: center;
+}
+
+.feature {
+    padding: 0.25rem 0.5rem;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.reports-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    margin-top: 1rem;
+}
+
+.report-item {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.5rem;
+}
+
+.report-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    margin-bottom: 1rem;
+}
+
+.report-info h3 {
+    margin-bottom: 0.5rem;
+}
+
+.report-meta {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.report-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.report-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.executive-summary, .key-insights, .report-recommendations {
+    padding: 1rem;
+    background: var(--bg-secondary);
+    border-radius: 6px;
+}
+
+.executive-summary h4, .key-insights h4, .report-recommendations h4 {
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    color: var(--text-primary);
+}
+
+.insights-list, .recommendations-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.insight-item, .recommendation-preview {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.insight-item i {
+    color: var(--accent-color);
+    font-size: 1rem;
+}
+
+.more-insights {
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.recommendation-preview {
+    padding: 0.5rem;
+    border-radius: 4px;
+    border-left: 3px solid var(--border-color);
+}
+
+.recommendation-preview.priority-high { border-left-color: #ef4444; }
+.recommendation-preview.priority-medium { border-left-color: #f59e0b; }
+.recommendation-preview.priority-low { border-left-color: #10b981; }
+
+.report-metrics {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 1rem;
+}
+
+.metric {
+    text-align: center;
+    padding: 0.75rem;
+    background: var(--bg-secondary);
+    border-radius: 6px;
+}
+
+.metric-value {
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: var(--accent-color);
+}
+
+.metric-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+}
+
+.report-archives-section {
+    text-align: center;
+    padding: 2rem;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+}
+
+.archives-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 1rem;
+    max-width: 600px;
+    margin: 1rem auto 2rem;
+}
+
+.archive-stat {
+    padding: 1rem;
+    background: var(--card-bg);
+    border-radius: 6px;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--accent-color);
+}
+
+.stat-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+}
+
+.no-reports-message {
+    text-align: center;
+    padding: 3rem;
+    color: var(--text-secondary);
+}
+
+.no-reports-message i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+/* Modal Styles */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background: var(--card-bg);
+    border-radius: 8px;
+    width: 90%;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-large .modal-content {
+    max-width: 800px;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--text-secondary);
+}
+
+.modal-body {
+    padding: 1.5rem;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    padding: 1.5rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+}
+
+.form-select {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--card-bg);
+    color: var(--text-primary);
+}
+
+/* Report Viewer Styles */
+.report-content .report-section {
+    margin-bottom: 2rem;
+}
+
+.report-meta-info {
+    display: flex;
+    gap: 2rem;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: var(--bg-secondary);
+    border-radius: 6px;
+}
+
+.insights-full-list {
+    list-style: disc;
+    padding-left: 1.5rem;
+}
+
+.insights-full-list li {
+    margin-bottom: 0.5rem;
+}
+
+.metrics-detailed-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.detailed-metric {
+    padding: 1rem;
+    background: var(--bg-secondary);
+    border-radius: 6px;
+    text-align: center;
+}
+
+.metric-name {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+}
+
+.recommendations-detailed {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.recommendation-detailed {
+    display: flex;
+    gap: 1rem;
+    padding: 1rem;
+    border-radius: 6px;
+    border-left: 4px solid var(--border-color);
+}
+
+.recommendation-detailed.priority-high { border-left-color: #ef4444; background: #fef2f2; }
+.recommendation-detailed.priority-medium { border-left-color: #f59e0b; background: #fffbeb; }
+.recommendation-detailed.priority-low { border-left-color: #10b981; background: #f0fdf4; }
+
+.rec-priority {
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    white-space: nowrap;
+}
+</style>
+{% endblock %}

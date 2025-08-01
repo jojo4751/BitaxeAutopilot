@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bitaxe_envScriptspip.exe install:*)",
+      "Bash(mkdir:*)",
+      "Bash(touch:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": []
+  }
+}

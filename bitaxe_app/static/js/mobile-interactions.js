@@ -1,705 +1,602 @@
 /**
  * BitAxe Mobile Interactions
- * Touch gestures and mobile-specific interactions
+ * Touch-optimized interactions and mobile-specific features
  */
 
-window.MobileInteractions = (function() {
-    'use strict';
-
-    let isTouch = false;
-    let touchStartPos = { x: 0, y: 0 };
-    let touchEndPos = { x: 0, y: 0 };
-    let swipeThreshold = 50;
-    let tapTimeout = null;
-    let doubleTapTimeout = null;
-    let longPressTimeout = null;
-    let lastTap = 0;
-
-    /**
-     * Initialize mobile interactions
-     */
-    function init() {
-        detectTouchDevice();
-        setupTouchEvents();
-        setupGestureRecognition();
-        setupHapticFeedback();
-        setupViewportHandling();
+class MobileInteractions {
+    constructor() {
+        this.isMobile = this.detectMobile();
+        this.isTouch = 'ontouchstart' in window;
+        this.fabMenu = null;
+        this.lastScrollY = 0;
+        this.ticking = false;
         
-        console.log('Mobile Interactions initialized');
+        this.init();
     }
-
-    /**
-     * Detect if device supports touch
-     */
-    function detectTouchDevice() {
-        isTouch = 'ontouchstart' in window || 
-                  navigator.maxTouchPoints > 0 || 
-                  navigator.msMaxTouchPoints > 0;
+    
+    init() {
+        console.log('🔥 Initializing Mobile Interactions...');
         
-        if (isTouch) {
-            document.body.classList.add('touch-device');
-        }
+        // Initialize mobile-specific features
+        this.initTouchGestures();
+        this.initFabMenu();
+        this.initPullToRefresh();
+        this.initScrollOptimization();
+        this.initMobileNavigation();
+        this.initToastNotifications();
+        this.initKeyboardHandling();
+        
+        // Add mobile-specific CSS classes
+        document.body.classList.toggle('is-mobile', this.isMobile);
+        document.body.classList.toggle('is-touch', this.isTouch);
+        
+        console.log('✅ Mobile Interactions initialized');
     }
-
-    /**
-     * Setup basic touch events
-     */
-    function setupTouchEvents() {
-        // Prevent default touch behavior on specific elements
-        document.addEventListener('touchstart', handleTouchStart, { passive: false });
-        document.addEventListener('touchmove', handleTouchMove, { passive: false });
-        document.addEventListener('touchend', handleTouchEnd, { passive: false });
-
+    
+    detectMobile() {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+               (window.innerWidth <= 768);
+    }
+    
+    initTouchGestures() {
         // Add touch feedback to interactive elements
-        addTouchFeedback();
+        const touchElements = document.querySelectorAll('.btn, .nav-link, .tab-item, .metric-card, .card');
+        
+        touchElements.forEach(element => {
+            element.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: true });
+            element.addEventListener('touchend', this.handleTouchEnd.bind(this), { passive: true });
+        });
+        
+        // Swipe gestures for navigation
+        let startX, startY, startTime;
+        
+        document.addEventListener('touchstart', (e) => {
+            const touch = e.touches[0];
+            startX = touch.clientX;
+            startY = touch.clientY;
+            startTime = Date.now();
+        }, { passive: true });
+        
+        document.addEventListener('touchend', (e) => {
+            if (!startX || !startY) return;
+            
+            const touch = e.changedTouches[0];
+            const endX = touch.clientX;
+            const endY = touch.clientY;
+            const endTime = Date.now();
+            
+            const deltaX = endX - startX;
+            const deltaY = endY - startY;
+            const deltaTime = endTime - startTime;
+            
+            // Only consider fast swipes
+            if (deltaTime > 300) return;
+            
+            // Minimum swipe distance
+            if (Math.abs(deltaX) < 50 && Math.abs(deltaY) < 50) return;
+            
+            // Horizontal swipe
+            if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                if (deltaX > 0) {
+                    this.handleSwipeRight();
+                } else {
+                    this.handleSwipeLeft();
+                }
+            }
+            // Vertical swipe
+            else {
+                if (deltaY > 0) {
+                    this.handleSwipeDown();
+                } else {
+                    this.handleSwipeUp();
+                }
+            }
+            
+            startX = null;
+            startY = null;
+        }, { passive: true });
     }
-
-    /**
-     * Handle touch start
-     */
-    function handleTouchStart(e) {
-        const touch = e.touches[0];
-        touchStartPos = { x: touch.clientX, y: touch.clientY };
-
-        // Long press detection
-        const element = e.target.closest('[data-long-press]');
-        if (element) {
-            longPressTimeout = setTimeout(() => {
-                handleLongPress(element, e);
-            }, 500);
-        }
-
-        // Prevent unwanted behaviors
-        if (e.target.closest('.no-touch-action')) {
-            e.preventDefault();
+    
+    handleTouchStart(e) {
+        e.currentTarget.classList.add('touch-active');
+    }
+    
+    handleTouchEnd(e) {
+        setTimeout(() => {
+            e.currentTarget.classList.remove('touch-active');
+        }, 150);
+    }
+    
+    handleSwipeLeft() {
+        // Could navigate to next page or open menu
+        console.log('Swipe left detected');
+    }
+    
+    handleSwipeRight() {
+        // Could navigate to previous page or close menu
+        const mobileMenu = document.getElementById('mobile-nav-panel');
+        if (mobileMenu && !mobileMenu.classList.contains('active')) {
+            this.toggleMobileMenu();
         }
     }
-
-    /**
-     * Handle touch move
-     */
-    function handleTouchMove(e) {
-        // Clear long press if user moves finger
-        if (longPressTimeout) {
-            clearTimeout(longPressTimeout);
-            longPressTimeout = null;
-        }
-
-        const touch = e.touches[0];
-        const deltaX = Math.abs(touch.clientX - touchStartPos.x);
-        const deltaY = Math.abs(touch.clientY - touchStartPos.y);
-
-        // Handle swipe cards
-        const swipeCard = e.target.closest('.swipe-card');
-        if (swipeCard && (deltaX > 10 || deltaY > 10)) {
-            handleCardSwipe(swipeCard, touch.clientX - touchStartPos.x, touch.clientY - touchStartPos.y);
-        }
-
-        // Handle chart interactions
-        const chart = e.target.closest('.chart-container');
-        if (chart && deltaX > 10) {
-            e.preventDefault(); // Prevent page scroll while interacting with chart
+    
+    handleSwipeDown() {
+        // Pull to refresh or show notifications
+        if (window.scrollY === 0) {
+            this.triggerPullToRefresh();
         }
     }
-
-    /**
-     * Handle touch end
-     */
-    function handleTouchEnd(e) {
-        // Clear long press timeout
-        if (longPressTimeout) {
-            clearTimeout(longPressTimeout);
-            longPressTimeout = null;
+    
+    handleSwipeUp() {
+        // Could hide UI elements or show quick actions
+        this.hideFabMenu();
+    }
+    
+    initFabMenu() {
+        const fab = document.getElementById('quick-actions-fab');
+        const fabMenu = document.getElementById('fab-menu');
+        
+        if (!fab || !fabMenu) return;
+        
+        this.fabMenu = fabMenu;
+        
+        fab.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.toggleFabMenu();
+        });
+        
+        // Close FAB menu when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!fab.contains(e.target) && !fabMenu.contains(e.target)) {
+                this.hideFabMenu();
+            }
+        });
+        
+        // Close FAB menu on scroll
+        window.addEventListener('scroll', () => {
+            this.hideFabMenu();
+        }, { passive: true });
+    }
+    
+    toggleFabMenu() {
+        if (this.fabMenu) {
+            const isActive = this.fabMenu.classList.contains('active');
+            this.fabMenu.classList.toggle('active', !isActive);
+            
+            // Rotate FAB icon
+            const fabIcon = document.querySelector('#quick-actions-fab i');
+            if (fabIcon) {
+                fabIcon.style.transform = isActive ? 'rotate(0deg)' : 'rotate(45deg)';
+            }
         }
-
-        const touch = e.changedTouches[0];
-        touchEndPos = { x: touch.clientX, y: touch.clientY };
-
-        // Calculate swipe direction and distance
-        const deltaX = touchEndPos.x - touchStartPos.x;
-        const deltaY = touchEndPos.y - touchStartPos.y;
-        const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-
-        // Handle swipes
-        if (distance > swipeThreshold) {
-            handleSwipe(deltaX, deltaY, e.target);
+    }
+    
+    hideFabMenu() {
+        if (this.fabMenu && this.fabMenu.classList.contains('active')) {
+            this.fabMenu.classList.remove('active');
+            
+            // Reset FAB icon
+            const fabIcon = document.querySelector('#quick-actions-fab i');
+            if (fabIcon) {
+                fabIcon.style.transform = 'rotate(0deg)';
+            }
+        }
+    }
+    
+    initPullToRefresh() {
+        let startY = 0;
+        let currentY = 0;
+        let pulling = false;
+        
+        const refreshThreshold = 100;
+        const refreshElement = this.createPullToRefreshElement();
+        
+        document.addEventListener('touchstart', (e) => {
+            if (window.scrollY === 0) {
+                startY = e.touches[0].clientY;
+                pulling = true;
+            }
+        }, { passive: true });
+        
+        document.addEventListener('touchmove', (e) => {
+            if (!pulling) return;
+            
+            currentY = e.touches[0].clientY;
+            const pullDistance = currentY - startY;
+            
+            if (pullDistance > 0 && window.scrollY === 0) {
+                e.preventDefault();
+                
+                const pullRatio = Math.min(pullDistance / refreshThreshold, 1);
+                refreshElement.style.transform = `translateY(${pullDistance * 0.5}px)`;
+                refreshElement.style.opacity = pullRatio;
+                
+                if (pullDistance > refreshThreshold) {
+                    refreshElement.classList.add('ready');
+                } else {
+                    refreshElement.classList.remove('ready');
+                }
+            }
+        });
+        
+        document.addEventListener('touchend', () => {
+            if (!pulling) return;
+            
+            const pullDistance = currentY - startY;
+            
+            if (pullDistance > refreshThreshold) {
+                this.triggerPullToRefresh();
+            }
+            
+            // Reset
+            refreshElement.style.transform = 'translateY(-100%)';
+            refreshElement.style.opacity = '0';
+            refreshElement.classList.remove('ready');
+            
+            pulling = false;
+            startY = 0;
+            currentY = 0;
+        });
+    }
+    
+    createPullToRefreshElement() {
+        const refreshElement = document.createElement('div');
+        refreshElement.className = 'pull-to-refresh';
+        refreshElement.innerHTML = `
+            <div class="refresh-icon">
+                <i data-lucide="refresh-cw"></i>
+            </div>
+            <div class="refresh-text">Pull to refresh</div>
+        `;
+        
+        // Add styles
+        refreshElement.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: var(--card-bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            color: var(--text-secondary);
+            transform: translateY(-100%);
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 999;
+            border-bottom: 1px solid var(--border-color);
+        `;
+        
+        document.body.appendChild(refreshElement);
+        
+        // Initialize lucide icons for the refresh element
+        if (window.lucide) {
+            window.lucide.createIcons();
+        }
+        
+        return refreshElement;
+    }
+    
+    triggerPullToRefresh() {
+        console.log('🔄 Pull to refresh triggered');
+        
+        // Show loading state
+        this.showToast('Refreshing...', 'info');
+        
+        // Trigger page refresh after a short delay
+        setTimeout(() => {
+            window.location.reload();
+        }, 500);
+    }
+    
+    initScrollOptimization() {
+        // Hide/show navigation on scroll
+        window.addEventListener('scroll', () => {
+            if (!this.ticking) {
+                requestAnimationFrame(() => {
+                    this.updateScrollPosition();
+                    this.ticking = false;
+                });
+                this.ticking = true;
+            }
+        }, { passive: true });
+    }
+    
+    updateScrollPosition() {
+        const currentScrollY = window.scrollY;
+        const navbar = document.getElementById('main-navbar');
+        const bottomTabBar = document.getElementById('bottom-tab-bar');
+        
+        if (currentScrollY > this.lastScrollY && currentScrollY > 100) {
+            // Scrolling down - hide navigation
+            if (navbar) navbar.style.transform = 'translateY(-100%)';
+            if (bottomTabBar) bottomTabBar.style.transform = 'translateY(100%)';
         } else {
-            // Handle taps
-            handleTap(e);
+            // Scrolling up - show navigation
+            if (navbar) navbar.style.transform = 'translateY(0)';
+            if (bottomTabBar) bottomTabBar.style.transform = 'translateY(0)';
+        }
+        
+        this.lastScrollY = currentScrollY;
+    }
+    
+    initMobileNavigation() {
+        const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
+        const mobileNavPanel = document.getElementById('mobile-nav-panel');
+        
+        if (mobileMenuToggle && mobileNavPanel) {
+            mobileMenuToggle.addEventListener('click', () => {
+                this.toggleMobileMenu();
+            });
+            
+            // Close menu when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!mobileNavPanel.contains(e.target) && !mobileMenuToggle.contains(e.target)) {
+                    this.closeMobileMenu();
+                }
+            });
+        }
+        
+        // Handle navbar toggle for realtime template
+        const navbarToggle = document.getElementById('navbar-toggle');
+        const navbarMenu = document.getElementById('navbar-menu');
+        
+        if (navbarToggle && navbarMenu) {
+            navbarToggle.addEventListener('click', () => {
+                navbarMenu.classList.toggle('active');
+            });
         }
     }
-
-    /**
-     * Handle swipe gestures
-     */
-    function handleSwipe(deltaX, deltaY, target) {
-        const absX = Math.abs(deltaX);
-        const absY = Math.abs(deltaY);
-
-        // Determine swipe direction
-        let direction = '';
-        if (absX > absY) {
-            direction = deltaX > 0 ? 'right' : 'left';
-        } else {
-            direction = deltaY > 0 ? 'down' : 'up';
+    
+    toggleMobileMenu() {
+        const mobileNavPanel = document.getElementById('mobile-nav-panel');
+        if (mobileNavPanel) {
+            mobileNavPanel.classList.toggle('active');
+            document.body.classList.toggle('menu-open');
         }
-
-        // Handle specific swipe contexts
-        const context = target.closest('[data-swipe]') || target.closest('.swipe-container');
-        if (context) {
-            handleContextualSwipe(context, direction, deltaX, deltaY);
-        }
-
-        // Global swipe handlers
-        handleGlobalSwipe(direction, target);
     }
-
-    /**
-     * Handle contextual swipes
-     */
-    function handleContextualSwipe(context, direction, deltaX, deltaY) {
-        const swipeType = context.dataset.swipe || context.classList.contains('swipe-container');
-
-        switch (swipeType) {
-            case 'miner-card':
-                handleMinerCardSwipe(context, direction);
-                break;
-            case 'tab-navigation':
-                handleTabSwipe(context, direction);
-                break;
-            case 'chart':
-                handleChartSwipe(context, direction, deltaX);
-                break;
-            default:
-                // Custom swipe handler
-                if (context.dataset.swipeHandler) {
-                    const handler = window[context.dataset.swipeHandler];
-                    if (typeof handler === 'function') {
-                        handler(direction, deltaX, deltaY);
+    
+    closeMobileMenu() {
+        const mobileNavPanel = document.getElementById('mobile-nav-panel');
+        if (mobileNavPanel) {
+            mobileNavPanel.classList.remove('active');
+            document.body.classList.remove('menu-open');
+        }
+    }
+    
+    initToastNotifications() {
+        // Create toast container if it doesn't exist
+        if (!document.getElementById('toast-container')) {
+            const toastContainer = document.createElement('div');
+            toastContainer.id = 'toast-container';
+            toastContainer.style.cssText = `
+                position: fixed;
+                top: 80px;
+                left: 1rem;
+                right: 1rem;
+                z-index: 10001;
+                pointer-events: none;
+            `;
+            document.body.appendChild(toastContainer);
+        }
+    }
+    
+    showToast(message, type = 'info', duration = 3000) {
+        const toastContainer = document.getElementById('toast-container');
+        if (!toastContainer) return;
+        
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.innerHTML = `
+            <div class="toast-content">
+                <i data-lucide="${this.getToastIcon(type)}"></i>
+                <span>${message}</span>
+            </div>
+        `;
+        
+        // Add styles
+        toast.style.cssText = `
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-left: 4px solid ${this.getToastColor(type)};
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+            pointer-events: all;
+        `;
+        
+        toast.querySelector('.toast-content').style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-primary);
+        `;
+        
+        toastContainer.appendChild(toast);
+        
+        // Initialize lucide icons
+        if (window.lucide) {
+            window.lucide.createIcons();
+        }
+        
+        // Animate in
+        requestAnimationFrame(() => {
+            toast.style.transform = 'translateX(0)';
+        });
+        
+        // Auto remove
+        setTimeout(() => {
+            toast.style.transform = 'translateX(100%)';
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 300);
+        }, duration);
+        
+        return toast;
+    }
+    
+    getToastIcon(type) {
+        const icons = {
+            success: 'check-circle',
+            error: 'x-circle',
+            warning: 'alert-triangle',
+            info: 'info'
+        };
+        return icons[type] || 'info';
+    }
+    
+    getToastColor(type) {
+        const colors = {
+            success: '#10b981',
+            error: '#ef4444',
+            warning: '#f59e0b',
+            info: '#3b82f6'
+        };
+        return colors[type] || '#3b82f6';
+    }
+    
+    initKeyboardHandling() {
+        // Handle virtual keyboard on mobile
+        if (this.isMobile) {
+            let initialViewportHeight = window.innerHeight;
+            
+            window.addEventListener('resize', () => {
+                const currentViewportHeight = window.innerHeight;
+                const heightDifference = initialViewportHeight - currentViewportHeight;
+                
+                // Keyboard is likely open if height difference is significant
+                if (heightDifference > 150) {
+                    document.body.classList.add('keyboard-open');
+                    
+                    // Adjust bottom tab bar
+                    const bottomTabBar = document.getElementById('bottom-tab-bar');
+                    if (bottomTabBar) {
+                        bottomTabBar.style.display = 'none';
+                    }
+                } else {
+                    document.body.classList.remove('keyboard-open');
+                    
+                    // Restore bottom tab bar
+                    const bottomTabBar = document.getElementById('bottom-tab-bar');
+                    if (bottomTabBar) {
+                        bottomTabBar.style.display = 'flex';
                     }
                 }
+            });
         }
-    }
-
-    /**
-     * Handle global swipes
-     */
-    function handleGlobalSwipe(direction, target) {
-        // Don't handle global swipes if target has specific handler
-        if (target.closest('[data-swipe]') || 
-            target.closest('.swipe-container') ||
-            target.closest('input') ||
-            target.closest('textarea')) {
-            return;
-        }
-
-        switch (direction) {
-            case 'right':
-                // Swipe right to open mobile menu (if on left edge)
-                if (touchStartPos.x < 50) {
-                    openMobileMenu();
-                }
-                break;
-            case 'left':
-                // Swipe left to close mobile menu or settings
-                closePanels();
-                break;
-            case 'down':
-                // Swipe down to refresh (if at top of page)
-                if (window.scrollY < 50) {
-                    handlePullToRefresh();
-                }
-                break;
-            case 'up':
-                // Swipe up to show quick actions (if at bottom)
-                if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 50) {
-                    showQuickActions();
-                }
-                break;
-        }
-    }
-
-    /**
-     * Handle miner card swipes
-     */
-    function handleMinerCardSwipe(card, direction) {
-        switch (direction) {
-            case 'left':
-                // Swipe left to show actions
-                showCardActions(card);
-                break;
-            case 'right':
-                // Swipe right to hide actions or expand details
-                if (card.classList.contains('actions-visible')) {
-                    hideCardActions(card);
-                } else {
-                    expandCardDetails(card);
-                }
-                break;
-            case 'up':
-                // Swipe up to bookmark/favorite
-                toggleCardBookmark(card);
-                break;
-            case 'down':
-                // Swipe down to minimize/collapse
-                collapseCardDetails(card);
-                break;
-        }
-    }
-
-    /**
-     * Handle tab swipes
-     */
-    function handleTabSwipe(container, direction) {
-        const tabs = container.querySelectorAll('.tab-item');
-        const activeTab = container.querySelector('.tab-item.active');
-        const currentIndex = Array.from(tabs).indexOf(activeTab);
-
-        let newIndex = currentIndex;
-        if (direction === 'left' && currentIndex < tabs.length - 1) {
-            newIndex = currentIndex + 1;
-        } else if (direction === 'right' && currentIndex > 0) {
-            newIndex = currentIndex - 1;
-        }
-
-        if (newIndex !== currentIndex) {
-            tabs[newIndex].click();
-            vibrate(50); // Short vibration feedback
-        }
-    }
-
-    /**
-     * Handle chart swipes
-     */
-    function handleChartSwipe(chart, direction, deltaX) {
-        // Implement chart panning/zooming
-        const chartInstance = chart.chartInstance || chart._chart;
-        if (chartInstance && chartInstance.pan) {
-            chartInstance.pan(deltaX);
-        }
-    }
-
-    /**
-     * Handle tap events
-     */
-    function handleTap(e) {
-        const now = Date.now();
-        const timeDiff = now - lastTap;
-
-        if (timeDiff < 300 && timeDiff > 0) {
-            // Double tap
-            handleDoubleTap(e);
-            lastTap = 0; // Reset to prevent triple tap
-        } else {
-            // Single tap
-            if (tapTimeout) {
-                clearTimeout(tapTimeout);
-            }
-            
-            tapTimeout = setTimeout(() => {
-                handleSingleTap(e);
-                tapTimeout = null;
-            }, 300);
-            
-            lastTap = now;
-        }
-    }
-
-    /**
-     * Handle single tap
-     */
-    function handleSingleTap(e) {
-        const target = e.target;
         
-        // Add ripple effect to buttons
-        if (target.closest('.btn') || target.closest('.card') || target.closest('[data-ripple]')) {
-            addRippleEffect(target, e);
-        }
-    }
-
-    /**
-     * Handle double tap
-     */
-    function handleDoubleTap(e) {
-        const target = e.target;
-        
-        // Double tap to zoom on charts
-        const chart = target.closest('.chart-container');
-        if (chart) {
-            toggleChartZoom(chart);
-            return;
-        }
-
-        // Double tap to expand cards
-        const card = target.closest('.card');
-        if (card && !target.closest('button') && !target.closest('input')) {
-            toggleCardExpansion(card);
-            return;
-        }
-
-        // Double tap to toggle theme
-        if (target.closest('.page-header')) {
-            cycleTheme();
-        }
-    }
-
-    /**
-     * Handle long press
-     */
-    function handleLongPress(element, e) {
-        vibrate(100); // Long vibration for long press
-        
-        const action = element.dataset.longPress;
-        switch (action) {
-            case 'context-menu':
-                showContextMenu(element, e);
-                break;
-            case 'quick-edit':
-                showQuickEdit(element);
-                break;
-            case 'bookmark':
-                toggleBookmark(element);
-                break;
-            default:
-                // Custom long press handler
-                if (window[action] && typeof window[action] === 'function') {
-                    window[action](element, e);
+        // Prevent zoom on input focus (iOS Safari)
+        const inputs = document.querySelectorAll('input, select, textarea');
+        inputs.forEach(input => {
+            input.addEventListener('focus', () => {
+                if (this.isMobile) {
+                    // Scroll input into view
+                    setTimeout(() => {
+                        input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 300);
                 }
-        }
-    }
-
-    /**
-     * Add touch feedback to interactive elements
-     */
-    function addTouchFeedback() {
-        const interactiveElements = document.querySelectorAll('button, .btn, .card, [data-touch-feedback]');
-        
-        interactiveElements.forEach(element => {
-            element.addEventListener('touchstart', function() {
-                this.classList.add('touch-active');
-            }, { passive: true });
-
-            element.addEventListener('touchend', function() {
-                setTimeout(() => {
-                    this.classList.remove('touch-active');
-                }, 150);
-            }, { passive: true });
-
-            element.addEventListener('touchcancel', function() {
-                this.classList.remove('touch-active');
-            }, { passive: true });
+            });
         });
     }
-
-    /**
-     * Add ripple effect
-     */
-    function addRippleEffect(element, event) {
-        const ripple = document.createElement('div');
-        ripple.className = 'ripple-effect';
-        
+    
+    // Utility methods for external use
+    vibrate(pattern = [100]) {
+        if ('vibrate' in navigator) {
+            navigator.vibrate(pattern);
+        }
+    }
+    
+    showSuccessToast(message) {
+        this.showToast(message, 'success');
+        this.vibrate([50]);
+    }
+    
+    showErrorToast(message) {
+        this.showToast(message, 'error');
+        this.vibrate([100, 50, 100]);
+    }
+    
+    isInViewport(element) {
         const rect = element.getBoundingClientRect();
-        const size = Math.max(rect.width, rect.height);
-        const x = event.clientX - rect.left - size / 2;
-        const y = event.clientY - rect.top - size / 2;
-        
-        ripple.style.cssText = `
-            position: absolute;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.3);
-            transform: scale(0);
-            animation: ripple 0.6s ease-out;
-            left: ${x}px;
-            top: ${y}px;
-            width: ${size}px;
-            height: ${size}px;
-            pointer-events: none;
-        `;
-        
-        element.style.position = 'relative';
-        element.style.overflow = 'hidden';
-        element.appendChild(ripple);
-        
-        setTimeout(() => {
-            ripple.remove();
-        }, 600);
+        return (
+            rect.top >= 0 &&
+            rect.left >= 0 &&
+            rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
+            rect.right <= (window.innerWidth || document.documentElement.clientWidth)
+        );
     }
-
-    /**
-     * Setup gesture recognition
-     */
-    function setupGestureRecognition() {
-        // Add CSS for touch states
-        const style = document.createElement('style');
-        style.textContent = `
-            .touch-active {
-                transform: scale(0.98);
-                opacity: 0.8;
-                transition: all 0.1s ease;
-            }
-
-            @keyframes ripple {
-                to {
-                    transform: scale(2);
-                    opacity: 0;
-                }
-            }
-
-            .touch-device .hover-only {
-                display: none !important;
-            }
-
-            .touch-device .btn {
-                min-height: 48px;
-                min-width: 48px;
-            }
-
-            .touch-device .form-input,
-            .touch-device .form-select {
-                min-height: 48px;
-                font-size: 16px; /* Prevent zoom on iOS */
-            }
-        `;
-        document.head.appendChild(style);
-    }
-
-    /**
-     * Setup haptic feedback
-     */
-    function setupHapticFeedback() {
-        // Check if device supports vibration
-        if (!navigator.vibrate) {
-            console.log('Vibration API not supported');
-        }
-    }
-
-    /**
-     * Vibrate device
-     */
-    function vibrate(duration = 50) {
-        if (navigator.vibrate) {
-            navigator.vibrate(duration);
-        }
-    }
-
-    /**
-     * Setup viewport handling
-     */
-    function setupViewportHandling() {
-        // Handle viewport changes (keyboard show/hide on mobile)
-        let initialViewportHeight = window.innerHeight;
+    
+    smoothScrollTo(element, offset = 0) {
+        const elementPosition = element.getBoundingClientRect().top + window.pageYOffset;
+        const offsetPosition = elementPosition - offset;
         
-        window.addEventListener('resize', () => {
-            const currentViewportHeight = window.innerHeight;
-            const heightDiff = initialViewportHeight - currentViewportHeight;
-            
-            if (heightDiff > 150) {
-                // Keyboard is likely open
-                document.body.classList.add('keyboard-open');
-            } else {
-                // Keyboard is likely closed
-                document.body.classList.remove('keyboard-open');
-            }
-        });
-
-        // Prevent zoom on double-tap for most elements
-        document.addEventListener('touchend', (e) => {
-            if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
-                e.preventDefault();
-            }
+        window.scrollTo({
+            top: offsetPosition,
+            behavior: 'smooth'
         });
     }
+}
 
-    /**
-     * Utility functions for swipe actions
-     */
-    function openMobileMenu() {
-        const mobilePanel = document.getElementById('mobile-nav-panel');
-        if (mobilePanel) {
-            mobilePanel.classList.add('show');
-            vibrate(25);
-        }
-    }
-
-    function closePanels() {
-        const panels = document.querySelectorAll('.mobile-nav-panel.show, .settings-panel.show, .fab-menu.show');
-        panels.forEach(panel => panel.classList.remove('show'));
-        if (panels.length > 0) {
-            vibrate(25);
-        }
-    }
-
-    function handlePullToRefresh() {
-        if (window.DashboardCore && window.DashboardCore.refreshData) {
-            window.DashboardCore.refreshData();
-            window.DashboardCore.showAlert('Refreshing data...', 'info', 2000);
-            vibrate(50);
-        }
-    }
-
-    function showQuickActions() {
-        const fab = document.getElementById('quick-actions-fab');
-        if (fab) {
-            fab.click();
-            vibrate(50);
-        }
-    }
-
-    function showCardActions(card) {
-        card.classList.add('actions-visible');
-        vibrate(25);
-    }
-
-    function hideCardActions(card) {
-        card.classList.remove('actions-visible');
-    }
-
-    function expandCardDetails(card) {
-        card.classList.add('expanded');
-        vibrate(25);
-    }
-
-    function collapseCardDetails(card) {
-        card.classList.remove('expanded');
-    }
-
-    function toggleCardBookmark(card) {
-        card.classList.toggle('bookmarked');
-        vibrate(50);
-    }
-
-    function toggleChartZoom(chart) {
-        chart.classList.toggle('zoomed');
-        vibrate(25);
-    }
-
-    function toggleCardExpansion(card) {
-        card.classList.toggle('expanded');
-        vibrate(25);
-    }
-
-    function cycleTheme() {
-        if (window.ThemeSystem) {
-            const themes = ['cyber-dark', 'neon-blue', 'mining-green', 'retro-amber', 'arctic-blue'];
-            const current = window.ThemeSystem.getCurrentTheme();
-            const currentIndex = themes.indexOf(current.id);
-            const nextIndex = (currentIndex + 1) % themes.length;
-            window.ThemeSystem.applyTheme(themes[nextIndex]);
-            vibrate(100);
-        }
-    }
-
-    function showContextMenu(element, event) {
-        // Create context menu
-        const menu = document.createElement('div');
-        menu.className = 'context-menu';
-        menu.innerHTML = `
-            <div class="context-menu-item" onclick="copyToClipboard('${element.textContent}')">
-                <i data-lucide="copy"></i> Copy
-            </div>
-            <div class="context-menu-item" onclick="shareElement('${element.id}')">
-                <i data-lucide="share"></i> Share
-            </div>
-            <div class="context-menu-item" onclick="bookmarkElement('${element.id}')">
-                <i data-lucide="bookmark"></i> Bookmark
-            </div>
-        `;
-        
-        menu.style.cssText = `
-            position: fixed;
-            background: var(--color-card-bg);
-            border: 1px solid var(--color-border);
-            border-radius: var(--border-radius-md);
-            box-shadow: var(--shadow-lg);
-            z-index: 9999;
-            min-width: 150px;
-        `;
-        
-        document.body.appendChild(menu);
-        
-        // Position menu
-        const rect = element.getBoundingClientRect();
-        menu.style.left = rect.left + 'px';
-        menu.style.top = (rect.bottom + 10) + 'px';
-        
-        // Remove menu after delay or on next tap
-        setTimeout(() => {
-            if (menu.parentElement) {
-                menu.remove();
-            }
-        }, 3000);
-        
-        document.addEventListener('touchstart', function removeMenu() {
-            menu.remove();
-            document.removeEventListener('touchstart', removeMenu);
-        });
-    }
-
-    /**
-     * Handle card swipe with visual feedback
-     */
-    function handleCardSwipe(card, deltaX, deltaY) {
-        const threshold = 50;
-        
-        if (Math.abs(deltaX) > threshold) {
-            // Horizontal swipe
-            card.style.transform = `translateX(${deltaX * 0.3}px)`;
-            
-            if (deltaX > threshold) {
-                card.classList.add('swipe-right');
-            } else if (deltaX < -threshold) {
-                card.classList.add('swipe-left');
-            }
-        }
-        
-        // Reset after animation
-        setTimeout(() => {
-            card.style.transform = '';
-            card.classList.remove('swipe-left', 'swipe-right');
-        }, 300);
-    }
-
-    /**
-     * Public API
-     */
-    return {
-        init,
-        vibrate,
-        isTouch: () => isTouch,
-        addRippleEffect
-    };
-
-})();
-
-// Global utility functions
-window.copyToClipboard = function(text) {
-    if (navigator.clipboard) {
-        navigator.clipboard.writeText(text);
-        if (window.DashboardCore) {
-            window.DashboardCore.showAlert('Copied to clipboard', 'success', 2000);
-        }
+// Global functions for external use
+window.showNotification = function(message, type = 'info') {
+    if (window.mobileInteractions) {
+        window.mobileInteractions.showToast(message, type);
     }
 };
 
-window.shareElement = function(elementId) {
-    if (navigator.share) {
-        navigator.share({
-            title: 'BitAxe Dashboard',
-            url: window.location.href
-        });
-    }
+window.startQuickBenchmark = function() {
+    window.showNotification('Quick benchmark feature coming soon!', 'info');
 };
 
-window.bookmarkElement = function(elementId) {
-    // Implement bookmarking logic
-    if (window.DashboardCore) {
-        window.DashboardCore.showAlert('Bookmark added', 'success', 2000);
-    }
+window.exportData = function() {
+    window.showNotification('Data export feature coming soon!', 'info');
 };
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
-    if (typeof window.MobileInteractions !== 'undefined') {
-        window.MobileInteractions.init();
-    }
+    window.mobileInteractions = new MobileInteractions();
 });
+
+// Add CSS for touch states and mobile-specific styles
+const mobileStyles = document.createElement('style');
+mobileStyles.textContent = `
+    .touch-active {
+        transform: scale(0.98);
+        opacity: 0.8;
+        transition: all 0.1s ease;
+    }
+    
+    .is-mobile .navbar {
+        transition: transform 0.3s ease;
+    }
+    
+    .is-mobile .bottom-tab-bar {
+        transition: transform 0.3s ease;
+    }
+    
+    .menu-open {
+        overflow: hidden;
+    }
+    
+    .keyboard-open .fab-container {
+        display: none;
+    }
+    
+    .pull-to-refresh.ready .refresh-icon i {
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+`;
+
+document.head.appendChild(mobileStyles);

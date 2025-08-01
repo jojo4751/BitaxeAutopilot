@@ -2,10 +2,14 @@ from typing import Dict, Any, Optional, Type, TypeVar
 import os
 
 from .config_service import ConfigService
-from .database_service import DatabaseService
 from .miner_service import MinerService
 from .benchmark_service import BenchmarkService
 from .autopilot_service import AutopilotService
+from .analytics_service import AnalyticsService
+from .statistical_analysis_service import StatisticalAnalysisService
+from .predictive_service import PredictiveService
+from .reporting_service import ReportingService
+from ..core.database_manager import DatabaseManager
 
 T = TypeVar('T')
 
@@ -28,22 +32,37 @@ class ServiceContainer:
         config_service = ConfigService(self.config_path)
         self._register_singleton('config_service', config_service)
         
-        # Initialize DatabaseService (depends on ConfigService)
-        database_service = DatabaseService(config_service)
-        database_service.initialize_tables()  # Ensure tables exist
-        self._register_singleton('database_service', database_service)
+        # Initialize DatabaseManager (depends on ConfigService)
+        database_manager = DatabaseManager(config_service)
+        self._register_singleton('database_service', database_manager)
         
-        # Initialize MinerService (depends on ConfigService and DatabaseService)
-        miner_service = MinerService(config_service, database_service)
+        # Initialize MinerService (depends on ConfigService and DatabaseManager)
+        miner_service = MinerService(config_service, database_manager)
         self._register_singleton('miner_service', miner_service)
         
-        # Initialize BenchmarkService (depends on ConfigService, DatabaseService, MinerService)
-        benchmark_service = BenchmarkService(config_service, database_service, miner_service)
+        # Initialize AnalyticsService (depends on ConfigService, DatabaseManager, MinerService)
+        analytics_service = AnalyticsService(config_service, database_manager, miner_service)
+        self._register_singleton('analytics_service', analytics_service)
+        
+        # Initialize StatisticalAnalysisService (depends on DatabaseManager, ConfigService)
+        statistical_service = StatisticalAnalysisService(database_manager, config_service)
+        self._register_singleton('statistical_service', statistical_service)
+        
+        # Initialize PredictiveService (depends on DatabaseManager, StatisticalService, ConfigService)
+        predictive_service = PredictiveService(database_manager, statistical_service, config_service)
+        self._register_singleton('predictive_service', predictive_service)
+        
+        # Initialize ReportingService (depends on DatabaseManager, StatisticalService, PredictiveService, ConfigService)
+        reporting_service = ReportingService(database_manager, statistical_service, predictive_service, config_service)
+        self._register_singleton('reporting_service', reporting_service)
+        
+        # Initialize BenchmarkService (depends on ConfigService, DatabaseManager, MinerService)
+        benchmark_service = BenchmarkService(config_service, database_manager, miner_service)
         self._register_singleton('benchmark_service', benchmark_service)
         
         # Initialize AutopilotService (depends on all other services)
         autopilot_service = AutopilotService(
-            config_service, database_service, miner_service, benchmark_service
+            config_service, database_manager, miner_service, benchmark_service
         )
         self._register_singleton('autopilot_service', autopilot_service)
 
@@ -62,8 +81,8 @@ class ServiceContainer:
         """Get the ConfigService instance"""
         return self.get('config_service')
 
-    def get_database_service(self) -> DatabaseService:
-        """Get the DatabaseService instance"""
+    def get_database_service(self) -> DatabaseManager:
+        """Get the DatabaseManager instance"""
         return self.get('database_service')
 
     def get_miner_service(self) -> MinerService:
@@ -74,9 +93,25 @@ class ServiceContainer:
         """Get the BenchmarkService instance"""
         return self.get('benchmark_service')
 
+    def get_analytics_service(self) -> AnalyticsService:
+        """Get the AnalyticsService instance"""
+        return self.get('analytics_service')
+
     def get_autopilot_service(self) -> AutopilotService:
         """Get the AutopilotService instance"""
         return self.get('autopilot_service')
+    
+    def get_statistical_service(self) -> StatisticalAnalysisService:
+        """Get the StatisticalAnalysisService instance"""
+        return self.get('statistical_service')
+    
+    def get_predictive_service(self) -> PredictiveService:
+        """Get the PredictiveService instance"""
+        return self.get('predictive_service')
+    
+    def get_reporting_service(self) -> ReportingService:
+        """Get the ReportingService instance"""
+        return self.get('reporting_service')
 
     def reload_config(self) -> None:
         """Reload configuration across all services"""
@@ -126,11 +161,12 @@ class ServiceContainer:
                 health_status["services"]["config"] = f"error: {e}"
                 health_status["overall_status"] = "degraded"
             
-            # Check DatabaseService
-            database_service = self.get_database_service()
+            # Check DatabaseManager
+            database_manager = self.get_database_service()
             try:
-                with database_service.get_connection() as conn:
-                    conn.execute("SELECT 1").fetchone()
+                with database_manager.get_connection() as conn:
+                    cursor = database_manager.execute_query(conn, "SELECT 1")
+                    cursor.fetchone()
                 health_status["services"]["database"] = "healthy"
             except Exception as e:
                 health_status["services"]["database"] = f"error: {e}"

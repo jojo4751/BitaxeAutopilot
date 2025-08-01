@@ -1,0 +1,672 @@
+{% extends "base_realtime.html" %}
+
+{% block title %}Predictive Analytics - BitAxe{% endblock %}
+{% block page_title %}Predictive Analytics Dashboard{% endblock %}
+{% block page_subtitle %}AI-powered failure prediction and performance forecasting{% endblock %}
+
+{% block page_actions %}
+<div class="analytics-controls">
+    <button class="btn btn-primary" onclick="refreshPredictions()">
+        <i data-lucide="refresh-cw"></i>
+        Refresh Predictions
+    </button>
+    <button class="btn btn-secondary" onclick="generateReport()">
+        <i data-lucide="file-text"></i>
+        Generate Report
+    </button>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Failure Predictions Section -->
+<div class="predictions-section">
+    <h2>Failure Risk Assessment</h2>
+    
+    <div class="predictions-grid">
+        {% for ip, prediction in predictions.items() %}
+        <div class="prediction-card risk-{{ prediction.risk_assessment.risk_level }}">
+            <div class="prediction-header">
+                <h3>{{ ip }}</h3>
+                <div class="risk-badge risk-{{ prediction.risk_assessment.risk_level }}">
+                    {{ prediction.risk_assessment.risk_level.title() }} Risk
+                </div>
+            </div>
+            
+            <div class="risk-score">
+                <div class="score-circle">
+                    <div class="score-value">{{ prediction.risk_assessment.overall_risk_score }}</div>
+                    <div class="score-label">Risk Score</div>
+                </div>
+            </div>
+            
+            <div class="degradation-analysis">
+                <h4>Performance Trends</h4>
+                
+                {% if prediction.degradation_analysis.hashrate %}
+                <div class="trend-item">
+                    <span class="trend-label">Hashrate</span>
+                    <span class="trend-value">
+                        {{ "%.2f"|format(prediction.degradation_analysis.hashrate.degradation_rate_percent_per_day) }}% / day
+                    </span>
+                    <div class="trend-confidence">
+                        <div class="confidence-bar">
+                            <div class="confidence-fill" style="width: {{ (prediction.degradation_analysis.hashrate.confidence * 100) }}%"></div>
+                        </div>
+                        <span class="confidence-value">{{ "%.1f"|format(prediction.degradation_analysis.hashrate.confidence * 100) }}%</span>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if prediction.degradation_analysis.temperature %}
+                <div class="trend-item">
+                    <span class="trend-label">Temperature</span>
+                    <span class="trend-value">
+                        {{ "%.2f"|format(prediction.degradation_analysis.temperature.trend_per_day) }}°C / day
+                    </span>
+                    <div class="trend-confidence">
+                        <div class="confidence-bar">
+                            <div class="confidence-fill" style="width: {{ (prediction.degradation_analysis.temperature.confidence * 100) }}%"></div>
+                        </div>
+                        <span class="confidence-value">{{ "%.1f"|format(prediction.degradation_analysis.temperature.confidence * 100) }}%</span>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if prediction.degradation_analysis.efficiency %}
+                <div class="trend-item">
+                    <span class="trend-label">Efficiency</span>
+                    <span class="trend-value">
+                        {{ "%.2f"|format(prediction.degradation_analysis.efficiency.degradation_rate_percent_per_day) }}% / day
+                    </span>
+                    <div class="trend-confidence">
+                        <div class="confidence-bar">
+                            <div class="confidence-fill" style="width: {{ (prediction.degradation_analysis.efficiency.confidence * 100) }}%"></div>
+                        </div>
+                        <span class="confidence-value">{{ "%.1f"|format(prediction.degradation_analysis.efficiency.confidence * 100) }}%</span>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- Maintenance Predictions -->
+            {% if prediction.maintenance_prediction.overall %}
+            <div class="maintenance-prediction">
+                <h4>Maintenance Schedule</h4>
+                <div class="maintenance-urgency urgency-{{ prediction.maintenance_prediction.overall.urgency }}">
+                    <i data-lucide="{% if prediction.maintenance_prediction.overall.urgency == 'critical' %}alert-circle{% elif prediction.maintenance_prediction.overall.urgency == 'high' %}alert-triangle{% else %}clock{% endif %}"></i>
+                    <span>{{ prediction.maintenance_prediction.overall.recommended_action.replace('_', ' ').title() }}</span>
+                </div>
+                <div class="next-check">
+                    Next check in: <strong>{{ prediction.maintenance_prediction.overall.days_until_next_check }} days</strong>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Risk Factors -->
+            {% if prediction.risk_assessment.risk_factors %}
+            <div class="risk-factors">
+                <h4>Risk Factors</h4>
+                <ul class="risk-factors-list">
+                    {% for factor in prediction.risk_assessment.risk_factors %}
+                    <li>{{ factor }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+            
+            <!-- Recommendations -->
+            {% if prediction.recommendations %}
+            <div class="recommendations">
+                <h4>Recommended Actions</h4>
+                <div class="recommendations-list">
+                    {% for rec in prediction.recommendations %}
+                    <div class="recommendation-item priority-{{ rec.priority }}">
+                        <i data-lucide="{% if rec.category == 'immediate_action' %}zap{% elif rec.category == 'cooling' %}thermometer{% elif rec.category == 'performance' %}trending-up{% elif rec.category == 'maintenance' %}wrench{% else %}info{% endif %}"></i>
+                        <div class="rec-content">
+                            <div class="rec-action">{{ rec.action }}</div>
+                            <div class="rec-reason">{{ rec.reason }}</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+        
+        {% if predictions | length == 0 %}
+        <div class="no-data-message">
+            <i data-lucide="brain"></i>
+            <h3>No Predictive Data Available</h3>
+            <p>Insufficient historical data for predictive analysis. Ensure miners have been running for at least 2 weeks with consistent data collection.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Forecasting Section -->
+{% if forecasts %}
+<div class="forecasting-section">
+    <h2>Performance Forecasting</h2>
+    
+    <div class="forecast-controls">
+        <div class="metric-selector">
+            <label>Metric:</label>
+            <select id="forecast-metric" onchange="updateForecastDisplay()">
+                <option value="hashRate">Hashrate</option>
+                <option value="temp">Temperature</option>
+                <option value="power">Power</option>
+                <option value="efficiency">Efficiency</option>
+            </select>
+        </div>
+        <div class="miner-selector">
+            <label>Miner:</label>
+            <select id="forecast-miner" onchange="updateForecastDisplay()">
+                {% for ip in forecasts.keys() %}
+                <option value="{{ ip }}">{{ ip }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+    
+    <div class="forecast-charts">
+        {% for ip, miner_forecasts in forecasts.items() %}
+        <div class="forecast-chart-container" data-miner="{{ ip }}" style="{% if loop.index0 > 0 %}display: none;{% endif %}">
+            {% for metric, forecast in miner_forecasts.items() %}
+            <div class="forecast-chart" data-metric="{{ metric }}" style="{% if metric != 'hashRate' %}display: none;{% endif %}">
+                <div class="chart-header">
+                    <h3>{{ ip }} - {{ metric.title() }} Forecast</h3>
+                    <div class="accuracy-badge">
+                        <span>Model Accuracy: {{ "%.1f"|format(forecast.model_accuracy * 100) }}%</span>
+                    </div>
+                </div>
+                
+                <div class="chart-container">
+                    <canvas id="forecast-chart-{{ ip.replace('.', '-') }}-{{ metric }}"></canvas>
+                </div>
+                
+                <div class="forecast-info">
+                    <div class="assumptions">
+                        <h5>Model Assumptions:</h5>
+                        <ul>
+                            {% for assumption in forecast.assumptions %}
+                            <li>{{ assumption }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/mobile-chart-optimization.js') }}"></script>
+<script>
+let forecastCharts = {};
+let forecastData = {{ forecasts | tojson }};
+
+function refreshPredictions() {
+    window.location.reload();
+}
+
+function generateReport() {
+    fetch('/api/analytics/generate-report', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            type: 'predictive',
+            include_forecasts: true
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            showNotification('Error generating report: ' + data.error, 'error');
+        } else {
+            showNotification('Report generated successfully', 'success');
+            // Could download or display the report here
+        }
+    })
+    .catch(error => {
+        showNotification('Error generating report: ' + error.message, 'error');
+    });
+}
+
+function updateForecastDisplay() {
+    const selectedMetric = document.getElementById('forecast-metric').value;
+    const selectedMiner = document.getElementById('forecast-miner').value;
+    
+    // Hide all forecast containers
+    document.querySelectorAll('.forecast-chart-container').forEach(container => {
+        container.style.display = 'none';
+    });
+    
+    // Show selected miner's container
+    const selectedContainer = document.querySelector(`[data-miner="${selectedMiner}"]`);
+    if (selectedContainer) {
+        selectedContainer.style.display = 'block';
+        
+        // Hide all charts in this container
+        selectedContainer.querySelectorAll('.forecast-chart').forEach(chart => {
+            chart.style.display = 'none';
+        });
+        
+        // Show selected metric chart
+        const selectedChart = selectedContainer.querySelector(`[data-metric="${selectedMetric}"]`);
+        if (selectedChart) {
+            selectedChart.style.display = 'block';
+            
+            // Create or update chart
+            const chartId = `forecast-chart-${selectedMiner.replace(/\./g, '-')}-${selectedMetric}`;
+            createForecastChart(chartId, selectedMiner, selectedMetric);
+        }
+    }
+}
+
+function createForecastChart(chartId, miner, metric) {
+    const canvas = document.getElementById(chartId);
+    if (!canvas) return;
+    
+    const forecast = forecastData[miner] && forecastData[miner][metric];
+    if (!forecast) return;
+    
+    // Destroy existing chart if it exists
+    if (forecastCharts[chartId]) {
+        forecastCharts[chartId].destroy();
+    }
+    
+    const ctx = canvas.getContext('2d');
+    
+    // Prepare data for Chart.js
+    const timestamps = forecast.timestamps.map(ts => new Date(ts));
+    const values = forecast.values;
+    const confidenceIntervals = forecast.confidence_intervals;
+    
+    // Create confidence interval data
+    const upperBound = confidenceIntervals.map(ci => ci[1]);
+    const lowerBound = confidenceIntervals.map(ci => ci[0]);
+    
+    forecastCharts[chartId] = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: timestamps,
+            datasets: [
+                {
+                    label: 'Forecast',
+                    data: values,
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    tension: 0.1
+                },
+                {
+                    label: 'Upper Bound (95%)',
+                    data: upperBound,
+                    borderColor: 'rgba(59, 130, 246, 0.3)',
+                    backgroundColor: 'transparent',
+                    borderDash: [5, 5],
+                    tension: 0.1
+                },
+                {
+                    label: 'Lower Bound (95%)',
+                    data: lowerBound,
+                    borderColor: 'rgba(59, 130, 246, 0.3)',
+                    backgroundColor: 'transparent',
+                    borderDash: [5, 5],
+                    tension: 0.1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    type: 'time',
+                    time: {
+                        displayFormats: {
+                            hour: 'HH:mm',
+                            day: 'MMM DD'
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Time'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: getMetricUnit(metric)
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top'
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false
+                }
+            }
+        }
+    });
+}
+
+function getMetricUnit(metric) {
+    switch(metric) {
+        case 'hashRate': return 'Hashrate (GH/s)';
+        case 'temp': return 'Temperature (°C)';
+        case 'power': return 'Power (W)';
+        case 'efficiency': return 'Efficiency (GH/W)';
+        default: return metric;
+    }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+    
+    // Initialize first forecast chart
+    if (Object.keys(forecastData).length > 0) {
+        updateForecastDisplay();
+    }
+});
+</script>
+
+<style>
+.predictions-grid, .forecast-charts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+    gap: 2rem;
+    margin-top: 1rem;
+}
+
+.prediction-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.5rem;
+    border-left: 4px solid var(--border-color);
+}
+
+.prediction-card.risk-low { border-left-color: #10b981; }
+.prediction-card.risk-medium { border-left-color: #f59e0b; }
+.prediction-card.risk-high { border-left-color: #ef4444; }
+.prediction-card.risk-critical { border-left-color: #dc2626; }
+
+.prediction-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.risk-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 0.875rem;
+}
+
+.risk-badge.risk-low { background: #10b981; color: white; }
+.risk-badge.risk-medium { background: #f59e0b; color: white; }
+.risk-badge.risk-high { background: #ef4444; color: white; }
+.risk-badge.risk-critical { background: #dc2626; color: white; }
+
+.risk-score {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+}
+
+.score-circle {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: var(--bg-secondary);
+    border: 3px solid var(--accent-color);
+}
+
+.score-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--accent-color);
+}
+
+.score-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.degradation-analysis, .maintenance-prediction, .risk-factors, .recommendations {
+    margin-bottom: 1.5rem;
+}
+
+.degradation-analysis h4, .maintenance-prediction h4, .risk-factors h4, .recommendations h4 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    color: var(--text-primary);
+}
+
+.trend-item {
+    display: grid;
+    grid-template-columns: 1fr auto 100px;
+    gap: 1rem;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.trend-item:last-child {
+    border-bottom: none;
+}
+
+.trend-label {
+    font-weight: 500;
+}
+
+.trend-value {
+    font-family: monospace;
+    color: var(--accent-color);
+}
+
+.trend-confidence {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.confidence-bar {
+    width: 60px;
+    height: 8px;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.confidence-fill {
+    height: 100%;
+    background: var(--accent-color);
+    transition: width 0.3s ease;
+}
+
+.confidence-value {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.maintenance-urgency {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    border-radius: 6px;
+    margin-bottom: 0.5rem;
+}
+
+.maintenance-urgency.urgency-critical { background: #fef2f2; color: #dc2626; }
+.maintenance-urgency.urgency-high { background: #fffbeb; color: #d97706; }
+.maintenance-urgency.urgency-medium { background: #f0f9ff; color: #0284c7; }
+.maintenance-urgency.urgency-low { background: #f0fdf4; color: #16a34a; }
+
+.next-check {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.risk-factors-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.risk-factors-list li {
+    padding: 0.25rem 0;
+    position: relative;
+    padding-left: 1rem;
+}
+
+.risk-factors-list li::before {
+    content: "⚠";
+    position: absolute;
+    left: 0;
+    color: #f59e0b;
+}
+
+.recommendations-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.recommendation-item {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.75rem;
+    align-items: start;
+    padding: 0.75rem;
+    background: var(--bg-secondary);
+    border-radius: 6px;
+    border-left: 3px solid var(--border-color);
+}
+
+.recommendation-item.priority-critical { border-left-color: #dc2626; }
+.recommendation-item.priority-high { border-left-color: #ef4444; }
+.recommendation-item.priority-medium { border-left-color: #f59e0b; }
+.recommendation-item.priority-low { border-left-color: #10b981; }
+
+.rec-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.rec-action {
+    font-weight: 500;
+}
+
+.rec-reason {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.forecast-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+.metric-selector, .miner-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.metric-selector label, .miner-selector label {
+    font-weight: 500;
+    font-size: 0.875rem;
+}
+
+.forecast-chart {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.5rem;
+}
+
+.chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.accuracy-badge {
+    padding: 0.25rem 0.75rem;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+    font-size: 0.875rem;
+}
+
+.chart-container {
+    height: 400px;
+    margin-bottom: 1rem;
+}
+
+.assumptions {
+    margin-top: 1rem;
+}
+
+.assumptions h5 {
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.assumptions ul {
+    list-style: disc;
+    padding-left: 1.5rem;
+    margin: 0;
+}
+
+.assumptions li {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.25rem;
+}
+
+.no-data-message {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 3rem;
+    color: var(--text-secondary);
+}
+
+.no-data-message i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+</style>
+{% endblock %}

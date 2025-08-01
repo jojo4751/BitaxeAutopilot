@@ -1,0 +1,152 @@
+{
+  "name": "BitAxe Mining Dashboard",
+  "short_name": "BitAxe",
+  "description": "Professional BitAxe ASIC Bitcoin mining management and analytics platform",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#0a0a0b",
+  "background_color": "#0a0a0b",
+  "categories": ["productivity", "utilities", "finance"],
+  "lang": "en",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/static/icons/icon-72x72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/static/icons/icon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/static/icons/icon-128x128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/static/icons/icon-144x144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/static/icons/icon-152x152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "maskable any"  
+    },
+    {
+      "src": "/static/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/static/icons/icon-384x384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/static/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/static/screenshots/dashboard-mobile.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "BitAxe Mobile Dashboard"
+    },
+    {
+      "src": "/static/screenshots/analytics-mobile.png", 
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Mobile Analytics Dashboard"
+    },
+    {
+      "src": "/static/screenshots/dashboard-desktop.png",
+      "sizes": "1280x720",
+      "type": "image/png", 
+      "form_factor": "wide",
+      "label": "BitAxe Desktop Dashboard"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Live Dashboard",
+      "short_name": "Dashboard",
+      "description": "View real-time mining metrics",
+      "url": "/dashboard",
+      "icons": [
+        {
+          "src": "/static/icons/shortcut-dashboard.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Analytics",
+      "short_name": "Analytics", 
+      "description": "Advanced mining analytics",
+      "url": "/analytics",
+      "icons": [
+        {
+          "src": "/static/icons/shortcut-analytics.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Control Panel",
+      "short_name": "Control",
+      "description": "Miner control and settings",
+      "url": "/control",
+      "icons": [
+        {
+          "src": "/static/icons/shortcut-control.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Fleet Comparison",
+      "short_name": "Fleet",
+      "description": "Compare miner performance",
+      "url": "/analytics/fleet-comparison",
+      "icons": [
+        {
+          "src": "/static/icons/shortcut-fleet.png",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false,
+  "protocols": [
+    {
+      "protocol": "web+bitaxe",
+      "url": "/dashboard?source=%s"
+    }
+  ],
+  "edge_side_panel": {
+    "preferred_width": 400
+  },
+  "launch_handler": {
+    "client_mode": "navigate-existing"
+  },
+  "handle_links": "preferred",
+  "capture_links": "new-client"
+}

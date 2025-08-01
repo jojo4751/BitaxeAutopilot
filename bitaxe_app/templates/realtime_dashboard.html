@@ -1,0 +1,717 @@
+{% extends "base_realtime.html" %}
+
+{% block title %}Live Analytics Dashboard - BitAxe{% endblock %}
+{% block page_title %}Live Analytics Dashboard{% endblock %}
+{% block page_subtitle %}Real-time fleet monitoring with advanced analytics{% endblock %}
+
+{% block page_actions %}
+<div class="dashboard-controls">
+    <div class="timeframe-selector">
+        <select id="timeframe-select" class="form-select">
+            <option value="1">Last 1 Hour</option>
+            <option value="6" selected>Last 6 Hours</option>
+            <option value="24">Last 24 Hours</option>
+            <option value="168">Last 7 Days</option>
+        </select>
+    </div>
+    <button class="btn btn-primary" id="refresh-dashboard">
+        <i data-lucide="refresh-cw"></i>
+        Refresh
+    </button>
+    <div class="live-update-timestamp" id="last-update">
+        Last update: Never
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Fleet Overview Cards -->
+<div class="metrics-grid">
+    <div class="metric-card fleet-summary" id="fleet-hashrate">
+        <div class="metric-header">
+            <h3>Total Hashrate</h3>
+            <i data-lucide="zap" class="metric-icon"></i>
+        </div>
+        <div class="metric-value" id="total-hashrate">
+            <span class="value">0.0</span>
+            <span class="unit">TH/s</span>
+        </div>
+        <div class="metric-change positive" id="hashrate-change">
+            <i data-lucide="trending-up"></i>
+            <span>+0.0%</span>
+        </div>
+    </div>
+
+    <div class="metric-card fleet-summary" id="fleet-power">
+        <div class="metric-header">
+            <h3>Total Power</h3>
+            <i data-lucide="battery" class="metric-icon"></i>
+        </div>
+        <div class="metric-value" id="total-power">
+            <span class="value">0.0</span>
+            <span class="unit">kW</span>
+        </div>
+        <div class="metric-change" id="power-change">
+            <i data-lucide="minus"></i>
+            <span>0.0%</span>
+        </div>
+    </div>
+
+    <div class="metric-card fleet-summary" id="fleet-efficiency">
+        <div class="metric-header">
+            <h3>Avg Efficiency</h3>
+            <i data-lucide="trending-up" class="metric-icon"></i>
+        </div>
+        <div class="metric-value" id="avg-efficiency">
+            <span class="value">0.0</span>
+            <span class="unit">TH/W</span>
+        </div>
+        <div class="metric-change" id="efficiency-change">
+            <i data-lucide="minus"></i>
+            <span>0.0%</span>
+        </div>
+    </div>
+
+    <div class="metric-card fleet-summary" id="fleet-profit">
+        <div class="metric-header">
+            <h3>Daily Profit</h3>
+            <i data-lucide="dollar-sign" class="metric-icon"></i>
+        </div>
+        <div class="metric-value" id="daily-profit">
+            <span class="value">$0.00</span>
+        </div>
+        <div class="metric-change" id="profit-change">
+            <i data-lucide="minus"></i>
+            <span>0.0%</span>
+        </div>
+    </div>
+</div>
+
+<!-- Real-time Charts Section -->
+<div class="charts-grid">
+    <!-- Fleet Hashrate Chart -->
+    <div class="chart-card">
+        <div class="chart-header">
+            <h3>Fleet Hashrate Timeline</h3>
+            <div class="chart-controls">
+                <button class="btn btn-ghost btn-sm" id="hashrate-chart-fullscreen">
+                    <i data-lucide="maximize-2"></i>
+                </button>
+            </div>
+        </div>
+        <div class="chart-container">
+            <canvas id="hashrate-chart"></canvas>
+            <div class="chart-loading" id="hashrate-chart-loading">
+                <div class="chart-spinner"></div>
+                <span>Loading chart data...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Temperature Monitoring -->
+    <div class="chart-card">
+        <div class="chart-header">
+            <h3>Temperature Monitoring</h3>
+            <div class="chart-controls">
+                <button class="btn btn-ghost btn-sm" id="temp-chart-fullscreen">
+                    <i data-lucide="maximize-2"></i>
+                </button>
+            </div>
+        </div>
+        <div class="chart-container">
+            <canvas id="temperature-chart"></canvas>
+            <div class="chart-loading" id="temperature-chart-loading">
+                <div class="chart-spinner"></div>
+                <span>Loading chart data...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Power Consumption -->
+    <div class="chart-card">
+        <div class="chart-header">
+            <h3>Power Consumption</h3>
+            <div class="chart-controls">
+                <button class="btn btn-ghost btn-sm" id="power-chart-fullscreen">
+                    <i data-lucide="maximize-2"></i>
+                </button>
+            </div>
+        </div>
+        <div class="chart-container">
+            <canvas id="power-chart"></canvas>
+            <div class="chart-loading" id="power-chart-loading">
+                <div class="chart-spinner"></div>
+                <span>Loading chart data...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Efficiency Trends -->
+    <div class="chart-card">
+        <div class="chart-header">
+            <h3>Efficiency Trends</h3>
+            <div class="chart-controls">
+                <button class="btn btn-ghost btn-sm" id="efficiency-chart-fullscreen">
+                    <i data-lucide="maximize-2"></i>
+                </button>
+            </div>
+        </div>
+        <div class="chart-container">
+            <canvas id="efficiency-chart"></canvas>
+            <div class="chart-loading" id="efficiency-chart-loading">
+                <div class="chart-spinner"></div>
+                <span>Loading chart data...</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Miner Status Grid -->
+<div class="miners-section">
+    <div class="section-header">
+        <h2>Miner Status Overview</h2>
+        <div class="miners-summary" id="miners-summary">
+            <span class="online-count">0 online</span>
+            <span class="offline-count">0 offline</span>
+        </div>
+    </div>
+    
+    <div class="miners-grid" id="miners-grid">
+        <!-- Miner cards will be populated by JavaScript -->
+    </div>
+</div>
+
+<!-- Active Alerts Section -->
+<div class="alerts-section" id="alerts-section" style="display: none;">
+    <div class="section-header">
+        <h2>Active Alerts</h2>
+        <button class="btn btn-secondary btn-sm" id="acknowledge-all-alerts">
+            <i data-lucide="check-circle"></i>
+            Acknowledge All
+        </button>
+    </div>
+    
+    <div class="alerts-list" id="alerts-list">
+        <!-- Alerts will be populated by JavaScript -->
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/mobile-chart-optimization.js') }}"></script>
+<script>
+class RealtimeDashboard {
+    constructor() {
+        this.charts = {};
+        this.lastData = {};
+        this.minerColors = {};
+        this.isInitialized = false;
+        
+        this.init();
+    }
+    
+    init() {
+        console.log('🚀 Initializing Realtime Dashboard...');
+        
+        // Wait for WebSocket connection
+        if (window.bitaxeWS) {
+            bitaxeWS.on('connected', () => {
+                this.initializeCharts();
+                this.subscribeToUpdates();
+                this.loadInitialData();
+            });
+            
+            bitaxeWS.on('liveUpdate', (data) => {
+                this.handleLiveUpdate(data);
+            });
+            
+            bitaxeWS.on('initialData', (data) => {
+                this.handleInitialData(data);
+            });
+        }
+        
+        // Setup event listeners
+        this.setupEventListeners();
+        
+        console.log('✅ Realtime Dashboard initialized');
+    }
+    
+    setupEventListeners() {
+        // Timeframe selector
+        const timeframeSelect = document.getElementById('timeframe-select');
+        if (timeframeSelect) {
+            timeframeSelect.addEventListener('change', () => {
+                this.updateChartTimeframe(parseInt(timeframeSelect.value));
+            });
+        }
+        
+        // Refresh button
+        const refreshBtn = document.getElementById('refresh-dashboard');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', () => {
+                this.refreshDashboard();
+            });
+        }
+        
+        // Chart fullscreen buttons
+        document.querySelectorAll('[id$="-chart-fullscreen"]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const chartId = e.currentTarget.id.replace('-fullscreen', '');
+                this.toggleChartFullscreen(chartId);
+            });
+        });
+    }
+    
+    initializeCharts() {
+        console.log('📊 Initializing charts...');
+        
+        // Common chart options
+        const commonOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            },
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        usePointStyle: true,
+                        padding: 20,
+                        color: '#e5e7eb'
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(17, 24, 39, 0.95)',
+                    titleColor: '#f9fafb',
+                    bodyColor: '#e5e7eb',
+                    borderColor: '#374151',
+                    borderWidth: 1
+                }
+            },
+            scales: {
+                x: {
+                    type: 'time',
+                    time: {
+                        displayFormats: {
+                            minute: 'HH:mm',
+                            hour: 'HH:mm',
+                            day: 'MMM DD'
+                        }
+                    },
+                    grid: {
+                        color: '#374151'
+                    },
+                    ticks: {
+                        color: '#9ca3af'
+                    }
+                },
+                y: {
+                    grid: {
+                        color: '#374151'
+                    },
+                    ticks: {
+                        color: '#9ca3af'
+                    }
+                }
+            }
+        };
+        
+        // Hashrate Chart
+        this.charts.hashrate = new Chart(
+            document.getElementById('hashrate-chart'),
+            {
+                type: 'line',
+                data: {
+                    datasets: []
+                },
+                options: {
+                    ...commonOptions,
+                    scales: {
+                        ...commonOptions.scales,
+                        y: {
+                            ...commonOptions.scales.y,
+                            title: {
+                                display: true,
+                                text: 'Hashrate (TH/s)',
+                                color: '#e5e7eb'
+                            }
+                        }
+                    }
+                }
+            }
+        );
+        
+        // Temperature Chart
+        this.charts.temperature = new Chart(
+            document.getElementById('temperature-chart'),
+            {
+                type: 'line',
+                data: {
+                    datasets: []
+                },
+                options: {
+                    ...commonOptions,
+                    scales: {
+                        ...commonOptions.scales,
+                        y: {
+                            ...commonOptions.scales.y,
+                            title: {
+                                display: true,
+                                text: 'Temperature (°C)',
+                                color: '#e5e7eb'
+                            },
+                            min: 20,
+                            max: 100
+                        }
+                    }
+                }
+            }
+        );
+        
+        // Power Chart
+        this.charts.power = new Chart(
+            document.getElementById('power-chart'),
+            {
+                type: 'line',
+                data: {
+                    datasets: []
+                },
+                options: {
+                    ...commonOptions,
+                    scales: {
+                        ...commonOptions.scales,
+                        y: {
+                            ...commonOptions.scales.y,
+                            title: {
+                                display: true,
+                                text: 'Power (W)',
+                                color: '#e5e7eb'
+                            }
+                        }
+                    }
+                }
+            }
+        );
+        
+        // Efficiency Chart
+        this.charts.efficiency = new Chart(
+            document.getElementById('efficiency-chart'),
+            {
+                type: 'line',
+                data: {
+                    datasets: []
+                },
+                options: {
+                    ...commonOptions,
+                    scales: {
+                        ...commonOptions.scales,
+                        y: {
+                            ...commonOptions.scales.y,
+                            title: {
+                                display: true,
+                                text: 'Efficiency (TH/W)',
+                                color: '#e5e7eb'
+                            }
+                        }
+                    }
+                }
+            }
+        );
+        
+        // Hide loading indicators
+        document.querySelectorAll('.chart-loading').forEach(loader => {
+            loader.style.display = 'none';
+        });
+        
+        this.isInitialized = true;
+    }
+    
+    subscribeToUpdates() {
+        if (window.bitaxeWS) {
+            // Subscribe to all miners
+            bitaxeWS.subscribeToAlerts(true);
+            bitaxeWS.subscribeToSystemStats(true);
+        }
+    }
+    
+    loadInitialData() {
+        console.log('📥 Loading initial dashboard data...');
+        
+        // Get timeframe
+        const timeframe = parseInt(document.getElementById('timeframe-select').value);
+        
+        // Request historical data for each miner
+        // This would be implemented based on your miner configuration
+    }
+    
+    handleInitialData(data) {
+        console.log('📊 Processing initial data:', data);
+        
+        if (data.miners) {
+            this.updateFleetMetrics(data.miners);
+            this.updateMinerGrid(data.miners);
+        }
+        
+        if (data.alerts) {
+            this.updateAlerts(data.alerts);
+        }
+    }
+    
+    handleLiveUpdate(data) {
+        console.log('🔄 Processing live update:', data);
+        
+        if (data.miners) {
+            this.updateFleetMetrics(data.miners);
+            this.updateMinerGrid(data.miners);
+            this.updateCharts(data.miners);
+        }
+        
+        if (data.alerts) {
+            this.updateAlerts(data.alerts);
+        }
+        
+        if (data.profitability) {
+            this.updateProfitabilityMetrics(data.profitability);
+        }
+    }
+    
+    updateFleetMetrics(miners) {
+        const totals = {
+            hashrate: 0,
+            power: 0,
+            count: 0,
+            online: 0
+        };
+        
+        miners.forEach(miner => {
+            if (miner.hashRate > 0) {
+                totals.hashrate += miner.hashRate;
+                totals.power += miner.power || 0;
+                totals.online++;
+            }
+            totals.count++;
+        });
+        
+        // Update metrics with animation
+        this.animateMetricUpdate('total-hashrate', (totals.hashrate / 1000).toFixed(2));
+        this.animateMetricUpdate('total-power', (totals.power / 1000).toFixed(2));
+        
+        if (totals.power > 0) {
+            const efficiency = totals.hashrate / totals.power;
+            this.animateMetricUpdate('avg-efficiency', efficiency.toFixed(3));
+        }
+        
+        // Update miners summary
+        const summaryEl = document.getElementById('miners-summary');
+        if (summaryEl) {
+            summaryEl.innerHTML = `
+                <span class="online-count">${totals.online} online</span>
+                <span class="offline-count">${totals.count - totals.online} offline</span>
+            `;
+        }
+    }
+    
+    animateMetricUpdate(elementId, newValue) {
+        const element = document.querySelector(`#${elementId} .value`);
+        if (element && element.textContent !== newValue) {
+            element.parentElement.parentElement.classList.add('updating');
+            element.textContent = newValue;
+            
+            setTimeout(() => {
+                element.parentElement.parentElement.classList.remove('updating');
+            }, 500);
+        }
+    }
+    
+    updateMinerGrid(miners) {
+        const grid = document.getElementById('miners-grid');
+        if (!grid) return;
+        
+        grid.innerHTML = miners.map(miner => this.createMinerCard(miner)).join('');
+    }
+    
+    createMinerCard(miner) {
+        const status = miner.hashRate > 0 ? 'online' : 'offline';
+        const efficiency = miner.power > 0 ? (miner.hashRate / miner.power).toFixed(3) : '0.000';
+        
+        return `
+            <div class="miner-card ${status}" data-ip="${miner.ip}">
+                <div class="miner-header">
+                    <div class="miner-name">${miner.ip}</div>
+                    <div class="miner-status status-${status}"></div>
+                </div>
+                <div class="miner-metrics">
+                    <div class="metric">
+                        <span class="label">Hashrate</span>
+                        <span class="value">${miner.hashRate?.toFixed(1) || '0.0'} GH/s</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">Temp</span>
+                        <span class="value">${miner.temp?.toFixed(1) || '0.0'}°C</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">Power</span>
+                        <span class="value">${miner.power?.toFixed(1) || '0.0'}W</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">Efficiency</span>
+                        <span class="value">${efficiency} GH/W</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    updateCharts(miners) {
+        if (!this.isInitialized) return;
+        
+        const now = new Date();
+        
+        miners.forEach(miner => {
+            const ip = miner.ip;
+            
+            // Update hashrate chart
+            this.addDataPoint('hashrate', ip, now, miner.hashRate / 1000); // Convert to TH/s
+            
+            // Update temperature chart
+            this.addDataPoint('temperature', ip, now, miner.temp);
+            
+            // Update power chart
+            this.addDataPoint('power', ip, now, miner.power);
+            
+            // Update efficiency chart
+            const efficiency = miner.power > 0 ? miner.hashRate / miner.power : 0;
+            this.addDataPoint('efficiency', ip, now, efficiency);
+        });
+        
+        // Update all charts
+        Object.values(this.charts).forEach(chart => {
+            chart.update('none'); // Update without animation for real-time
+        });
+    }
+    
+    addDataPoint(chartType, minerIp, timestamp, value) {
+        const chart = this.charts[chartType];
+        if (!chart) return;
+        
+        // Find or create dataset for this miner
+        let dataset = chart.data.datasets.find(ds => ds.label === minerIp);
+        
+        if (!dataset) {
+            // Get color for this miner (you could get this from server)
+            const color = this.getMinerColor(minerIp);
+            
+            dataset = {
+                label: minerIp,
+                data: [],
+                borderColor: color,
+                backgroundColor: color + '20',
+                tension: 0.1,
+                pointRadius: 0,
+                pointHoverRadius: 4
+            };
+            
+            chart.data.datasets.push(dataset);
+        }
+        
+        // Add new data point
+        dataset.data.push({
+            x: timestamp,
+            y: value
+        });
+        
+        // Keep only last 100 points for performance
+        if (dataset.data.length > 100) {
+            dataset.data.shift();
+        }
+    }
+    
+    getMinerColor(ip) {
+        if (!this.minerColors[ip]) {
+            // Generate a consistent color for this IP
+            const colors = [
+                '#3b82f6', '#ef4444', '#10b981', '#f59e0b',
+                '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'
+            ];
+            
+            const index = Object.keys(this.minerColors).length % colors.length;
+            this.minerColors[ip] = colors[index];
+        }
+        
+        return this.minerColors[ip];
+    }
+    
+    updateAlerts(alerts) {
+        const alertsSection = document.getElementById('alerts-section');
+        const alertsList = document.getElementById('alerts-list');
+        
+        if (alerts.length > 0) {
+            alertsSection.style.display = 'block';
+            alertsList.innerHTML = alerts.map(alert => this.createAlertCard(alert)).join('');
+        } else {
+            alertsSection.style.display = 'none';
+        }
+    }
+    
+    createAlertCard(alert) {
+        const severityIcons = {
+            'critical': 'alert-circle',
+            'warning': 'alert-triangle',
+            'info': 'info'
+        };
+        
+        return `
+            <div class="alert alert-${alert.severity}" data-alert-id="${alert.id}">
+                <div class="alert-icon">
+                    <i data-lucide="${severityIcons[alert.severity] || 'info'}"></i>
+                </div>
+                <div class="alert-content">
+                    <div class="alert-title">${alert.alert_type} Alert - ${alert.ip}</div>
+                    <div class="alert-message">${alert.message}</div>
+                    <div class="alert-timestamp">${new Date(alert.timestamp).toLocaleString()}</div>
+                </div>
+                <div class="alert-actions">
+                    <button class="btn btn-ghost btn-sm acknowledge-alert" data-alert-id="${alert.id}">
+                        <i data-lucide="check"></i>
+                        Acknowledge
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+    
+    refreshDashboard() {
+        console.log('🔄 Refreshing dashboard...');
+        
+        // Re-subscribe to updates
+        this.subscribeToUpdates();
+        
+        // Reload data
+        this.loadInitialData();
+        
+        showNotification('Dashboard refreshed', 'success');
+    }
+    
+    updateChartTimeframe(hours) {
+        console.log(`📅 Updating chart timeframe to ${hours} hours`);
+        
+        // Clear existing chart data
+        Object.values(this.charts).forEach(chart => {
+            chart.data.datasets = [];
+            chart.update();
+        });
+        
+        // Request new historical data
+        this.loadInitialData();
+    }
+}
+
+// Initialize dashboard when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    window.realtimeDashboard = new RealtimeDashboard();
+});
+</script>
+{% endblock %}
