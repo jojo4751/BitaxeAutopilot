@@ -339,17 +339,17 @@ def register_routes(app):
             reporting_service = app.container.get_reporting_service()
             
             # Get available reports
-            reports = reporting_service.get_available_reports()
+            available_reports = reporting_service.get_available_reports()
             
-            # Get recent reports
+            # Get recent reports (limit to last 10)
             recent_reports = []
-            for report_id in reports.get('recent_reports', []):
-                report = reporting_service.get_report(report_id)
+            for report_data in available_reports[-10:]:  # Get last 10 reports
+                report = reporting_service.get_report(report_data.get('filename', ''))
                 if report:
                     recent_reports.append(report)
             
             return render_template("analytics/reports.html",
-                                 reports=reports,
+                                 reports=available_reports,
                                  recent_reports=recent_reports)
                                  
         except Exception as e:
